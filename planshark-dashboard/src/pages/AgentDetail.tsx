@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useStore } from '@/stores/store'
-import { ArrowLeft, Play, Square, RefreshCw, Save } from 'lucide-react'
+import { ArrowLeft, Play, Square, RefreshCw, Save, Send, Trash2 } from 'lucide-react'
 import { agentApi } from '@/lib/api'
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>()
-  const { selectedAgent, selectedAgentConfig, selectAgent, updateAgentConfig, startAgent, stopAgent } = useStore()
-  const [activeTab, setActiveTab] = useState<'agent' | 'tool' | 'heartbeat' | 'logs'>('agent')
+  const { selectedAgent, selectedAgentConfig, selectAgent, updateAgentConfig, startAgent, stopAgent, chatMessages, sendChatMessage, clearChat } = useStore()
+  const [activeTab, setActiveTab] = useState<'agent' | 'tool' | 'heartbeat' | 'chat' | 'logs'>('agent')
   const [logs, setLogs] = useState('')
   const [loading, setLoading] = useState(false)
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
   const [editedConfig, setEditedConfig] = useState({
     agent_md: '',
     tool_md: '',
@@ -69,6 +71,24 @@ export default function AgentDetail() {
     await stopAgent(id)
   }
 
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!id || !chatInput.trim()) return
+    setChatLoading(true)
+    setChatInput('')
+    try {
+      await sendChatMessage(id, chatInput)
+    } catch (e) {
+      console.error(e)
+    }
+    setChatLoading(false)
+  }
+
+  const handleClearChat = async () => {
+    if (!id) return
+    await clearChat(id)
+  }
+
   if (!selectedAgent) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -112,19 +132,59 @@ export default function AgentDetail() {
 
       <div className="border rounded-lg">
         <div className="flex border-b">
-          {(['agent', 'tool', 'heartbeat', 'logs'] as const).map(tab => (
+          {(['agent', 'tool', 'heartbeat', 'chat', 'logs'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 capitalize ${activeTab === tab ? 'bg-muted font-medium' : ''}`}
             >
-              {tab === 'agent' ? 'agent.md' : tab === 'tool' ? 'tool.md' : tab === 'heartbeat' ? 'heartbeat.md' : 'Logs'}
+              {tab === 'agent' ? 'agent.md' : tab === 'tool' ? 'tool.md' : tab === 'heartbeat' ? 'heartbeat.md' : tab === 'chat' ? 'Chat' : 'Logs'}
             </button>
           ))}
         </div>
 
         <div className="p-4">
-          {activeTab === 'logs' ? (
+          {activeTab === 'chat' ? (
+            <div className="space-y-4">
+              <div className="border rounded-lg bg-muted p-4 h-96 overflow-y-auto space-y-4">
+                {(chatMessages[id!] || []).length === 0 ? (
+                  <p className="text-muted-foreground text-center">No messages yet. Start a conversation!</p>
+                ) : (
+                  (chatMessages[id!] || []).map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-lg p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground text-muted'}`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <form onSubmit={handleChat} className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  placeholder="Type a message..."
+                  disabled={chatLoading}
+                  className="flex-1 px-3 py-2 border rounded-lg bg-background"
+                />
+                <button
+                  type="submit"
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="px-4 py-2 border rounded-lg hover:bg-muted"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+          ) : activeTab === 'logs' ? (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <h3 className="font-medium">Container Logs</h3>

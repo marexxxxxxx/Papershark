@@ -49,7 +49,7 @@ type Agent struct {
 
 type AgentConfig struct {
 	AgentID    uuid.UUID `json:"agent_id"`
-	Heartbeat  string    `json:"hearbeat_md"`
+	Heartbeat  string    `json:"heartbeat_md"`
 	AgentMD    string    `json:"agent_md"`
 	ToolMD     string    `json:"tool_md"`
 }
@@ -99,7 +99,7 @@ type CreateGatewayRequest struct {
 }
 
 type UpdateAgentConfigRequest struct {
-	Heartbeat string `json:"hearbeat_md,omitempty"`
+	Heartbeat string `json:"heartbeat_md,omitempty"`
 	AgentMD   string `json:"agent_md,omitempty"`
 	ToolMD    string `json:"tool_md,omitempty"`
 }

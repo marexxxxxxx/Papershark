@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -23,6 +25,14 @@ func NewClient(baseDir string) (*Client, error) {
 	socketPath := "/var/run/docker.sock"
 	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("docker socket not found: %w", err)
+	}
+
+	if !filepath.IsAbs(baseDir) {
+		absPath, err := filepath.Abs(baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path: %w", err)
+		}
+		baseDir = absPath
 	}
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
@@ -50,9 +60,10 @@ func (c *Client) EnsureAgentDir(agentID uuid.UUID) (string, error) {
 
 func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error) {
 	var reqBody io.Reader
+	var bodyData []byte
 	if body != nil {
-		data, _ := json.Marshal(body)
-		reqBody = bytes.NewReader(data)
+		bodyData, _ = json.Marshal(body)
+		reqBody = bytes.NewReader(bodyData)
 	}
 
 	conn, err := net.Dial("unix", "/var/run/docker.sock")
@@ -61,11 +72,15 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 	}
 	defer conn.Close()
 
-	req, err := http.NewRequest(method, path, reqBody)
+	req, err := http.NewRequest(method, "http://localhost"+path, reqBody)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Host", "localhost")
+	if len(bodyData) > 0 {
+		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(bodyData)))
+	}
 
 	err = req.Write(conn)
 	if err != nil {
@@ -78,10 +93,26 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 	}
 	defer resp.Body.Close()
 
-	return io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return data, fmt.Errorf("docker API error: %d %s", resp.StatusCode, string(data))
+	}
+
+	return data, nil
 }
 
-func (c *Client) CreateAgentContainer(ctx context.Context, agentID uuid.UUID, name string) (string, error) {
+func (c *Client) CreateAgentContainer(ctx context.Context, agentID uuid.UUID, name string, gatewayEndpoint string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	agentDir, err := c.EnsureAgentDir(agentID)
 	if err != nil {
 		return "", err
@@ -89,9 +120,27 @@ func (c *Client) CreateAgentContainer(ctx context.Context, agentID uuid.UUID, na
 
 	containerName := fmt.Sprintf("planshark-%s", name)
 
+	networkMode := "bridge"
+	envVars := []string{
+		"AGENT_DIR=/agent",
+		"AGENT_ID=" + agentID.String(),
+	}
+	if gatewayEndpoint != "" {
+		envVars = append(envVars, "OPENAI_BASE_URL="+gatewayEndpoint)
+	}
+
 	body := map[string]interface{}{
-		"Image":        "planshark-agent:latest",
-		"HostConfig":   map[string]interface{}{"Binds": []string{fmt.Sprintf("%s:/agent:rw", agentDir)}},
+		"Image": "planshark-agent:latest",
+		"HostConfig": map[string]interface{}{
+			"Binds": []string{
+				fmt.Sprintf("%s/agent.md:/agent/agent.md:ro", agentDir),
+				fmt.Sprintf("%s/tool.md:/agent/tool.md:ro", agentDir),
+				fmt.Sprintf("%s/heartbeat.md:/agent/heartbeat.md:rw", agentDir),
+				fmt.Sprintf("%s/logs:/agent/logs:rw", agentDir),
+			},
+			"NetworkMode": networkMode,
+		},
+		"Env":          envVars,
 		"Cmd":          []string{"python", "agent.py"},
 		"WorkingDir":   "/agent",
 		"AttachStdout": true,
@@ -104,16 +153,26 @@ func (c *Client) CreateAgentContainer(ctx context.Context, agentID uuid.UUID, na
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
 
+	if len(data) == 0 {
+		return "", fmt.Errorf("empty Docker response")
+	}
+
 	var resp map[string]interface{}
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse response: %w, data: %s", err, string(data))
 	}
 
-	if resp["Id"] == nil {
-		return "", fmt.Errorf("no container ID returned")
+	id, ok := resp["Id"].(string)
+	if !ok || id == "" {
+		// Check for error message in response
+		if msg, hasMsg := resp["message"].(string); hasMsg {
+			return "", fmt.Errorf("docker error: %s", msg)
+		}
+		return "", fmt.Errorf("no container ID returned, response: %s", string(data))
 	}
 
-	return resp["Id"].(string)[:12], nil
+	log.Printf("Created container %s for agent %s", id[:12], agentID)
+	return id[:12], nil
 }
 
 func (c *Client) StartContainer(ctx context.Context, containerID string) error {

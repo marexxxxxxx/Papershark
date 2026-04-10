@@ -13,7 +13,9 @@ COPY planshark-agent/src/agent.md /agent/agent.md
 COPY planshark-agent/src/tool.md /agent/tool.md
 COPY planshark-agent/src/heartbeat.md /agent/heartbeat.md
 
-RUN useradd -m agent && mkdir -p /home/agent && chown agent:agent /home/agent
+RUN useradd -m agent && \
+    mkdir -p /home/agent /agent/logs && \
+    chown -R agent:agent /agent
 
 USER agent
 

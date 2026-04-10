@@ -1,0 +1,21 @@
+[Unit]
+Description=PlanShark AI Agent Server
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/planshark
+ExecStart=/opt/planshark/planshark-core/bin/server -data /opt/planshark/data -addr :8080
+Restart=on-failure
+RestartSec=5
+
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+
+Environment=HOME=/root
+
+[Install]
+WantedBy=multi-user.target

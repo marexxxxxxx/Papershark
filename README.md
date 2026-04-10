@@ -8,7 +8,7 @@ A lightweight, open-source tool for creating and managing AI agents in Docker sa
 - **Unified API Gateway**: Connect to local AI providers (Ollama, llama.cpp, OpenAI-compatible)
 - **Rate Limiting**: Configure concurrent request limits per gateway (default: 2 slots)
 - **Real-time Monitoring**: Track agent status, token usage, and container logs
-- **Config Management**: Edit agent.md, tool.md, and hearbeat.md directly from the dashboard
+- **Config Management**: Edit agent.md, tool.md, and heartbeat.md directly from the dashboard
 
 ## Quick Start
 

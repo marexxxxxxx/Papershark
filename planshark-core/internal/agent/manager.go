@@ -31,6 +31,7 @@ func (m *Manager) Create(ctx context.Context, req *models.CreateAgentRequest) (*
 		Name:      req.Name,
 		Model:     req.Model,
 		Status:    models.StatusStopped,
+		GatewayID: &req.GatewayID,
 	}
 
 	if err := m.db.CreateAgent(agent); err != nil {
@@ -84,7 +85,7 @@ func (m *Manager) List() ([]models.Agent, error) {
 }
 
 func (m *Manager) Start(ctx context.Context, id uuid.UUID) error {
-	agent, err := m.db.GetAgent(id)
+	agent, err := m.db.GetAgentWithGateway(id)
 	if err != nil {
 		return fmt.Errorf("agent not found: %w", err)
 	}
@@ -93,8 +94,13 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("agent already running")
 	}
 
+	gatewayEndpoint := ""
+	if agent.Gateway != nil {
+		gatewayEndpoint = agent.Gateway.Endpoint
+	}
+
 	if agent.ContainerID == "" {
-		containerID, err := m.docker.CreateAgentContainer(ctx, agent.ID, agent.Name)
+		containerID, err := m.docker.CreateAgentContainer(ctx, agent.ID, agent.Name, gatewayEndpoint)
 		if err != nil {
 			return fmt.Errorf("failed to create container: %w", err)
 		}
@@ -227,9 +233,9 @@ func (m *Manager) updateHeartbeat(id uuid.UUID, status string) {
 
 func (m *Manager) writeConfigFiles(agentDir string, config *models.AgentConfig) error {
 	files := map[string]string{
-		"hearbeat.md": config.Heartbeat,
-		"agent.md":    config.AgentMD,
-		"tool.md":     config.ToolMD,
+		"heartbeat.md": config.Heartbeat,
+		"agent.md":     config.AgentMD,
+		"tool.md":      config.ToolMD,
 	}
 
 	for filename, content := range files {

@@ -14,9 +14,9 @@ import (
 )
 
 type Handler struct {
-	db  *db.DB
-	ag  *agent.Manager
-	gw  *gateway.GatewayManager
+	db *db.DB
+	ag *agent.Manager
+	gw *gateway.GatewayManager
 }
 
 func New(database *db.DB, agentMgr *agent.Manager, gwMgr *gateway.GatewayManager) *Handler {
@@ -66,15 +66,40 @@ func (h *Handler) GetAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var rawReq map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&rawReq); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if req.Name == "" {
+	gatewayIDRaw, exists := rawReq["gateway_id"]
+	if !exists || gatewayIDRaw == nil || gatewayIDRaw == "" {
+		http.Error(w, "gateway_id is required", http.StatusBadRequest)
+		return
+	}
+
+	var req models.CreateAgentRequest
+	gatewayID, err := uuid.Parse(rawReq["gateway_id"].(string))
+	if err != nil {
+		http.Error(w, "invalid gateway_id format", http.StatusBadRequest)
+		return
+	}
+	req.GatewayID = gatewayID
+
+	if rawReq["name"] == nil || rawReq["name"] == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
+	}
+	req.Name = rawReq["name"].(string)
+
+	if rawReq["model"] != nil {
+		req.Model = rawReq["model"].(string)
+	}
+	if rawReq["agent_md"] != nil {
+		req.AgentMD = rawReq["agent_md"].(string)
+	}
+	if rawReq["tool_md"] != nil {
+		req.ToolMD = rawReq["tool_md"].(string)
 	}
 
 	created, err := h.ag.Create(r.Context(), &req)
@@ -382,7 +407,7 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	response := models.ChatResponse{
 		Content:      result.Content,
-		Done:        true,
+		Done:         true,
 		TotalTokens:  result.InputTokens + result.OutputTokens,
 		InputTokens:  result.InputTokens,
 		OutputTokens: result.OutputTokens,

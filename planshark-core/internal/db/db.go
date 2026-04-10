@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/google/uuid"
+	_ "github.com/mattn/go-sqlite3"
 
 	"planshark-core/pkg/models"
 )
@@ -86,6 +86,23 @@ func (db *DB) migrate() error {
 
 	CREATE INDEX IF NOT EXISTS idx_requests_agent_id ON requests(agent_id);
 	CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests(created_at);
+
+	CREATE TABLE IF NOT EXISTS tasks (
+		id TEXT PRIMARY KEY,
+		agent_id TEXT NOT NULL REFERENCES agents(id),
+		task_type TEXT NOT NULL DEFAULT 'chat',
+		input TEXT NOT NULL,
+		output TEXT DEFAULT '',
+		status TEXT DEFAULT 'pending',
+		error TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		started_at DATETIME,
+		completed_at DATETIME
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id);
+	CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+	CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
 	`
 
 	_, err := db.conn.Exec(schema)
@@ -314,4 +331,154 @@ func (db *DB) GetStats() (*models.Stats, error) {
 	db.conn.QueryRow("SELECT COALESCE(SUM(output_tokens), 0) FROM requests").Scan(&s.TotalOutputTokens)
 
 	return s, nil
+}
+
+func (db *DB) CreateTask(t *models.Task) error {
+	t.ID = uuid.New()
+	t.CreatedAt = time.Now()
+	t.Status = models.TaskStatusPending
+	_, err := db.conn.Exec(`
+		INSERT INTO tasks (id, agent_id, task_type, input, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, t.ID.String(), t.AgentID.String(), t.TaskType, t.Input, t.Status, t.CreatedAt)
+	return err
+}
+
+func (db *DB) GetTask(id uuid.UUID) (*models.Task, error) {
+	t := &models.Task{}
+	err := db.conn.QueryRow(`
+		SELECT id, agent_id, task_type, input, output, status, error, created_at, started_at, completed_at
+		FROM tasks WHERE id = ?
+	`, id.String()).Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (db *DB) GetTaskByAgentAndStatus(agentID uuid.UUID, status models.TaskStatus, limit int) ([]models.Task, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, agent_id, task_type, input, output, status, error, created_at, started_at, completed_at
+		FROM tasks WHERE agent_id = ? AND status = ? ORDER BY created_at ASC LIMIT ?
+	`, agentID.String(), status, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var t models.Task
+		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
+}
+
+func (db *DB) ListTasksByAgent(agentID uuid.UUID) ([]models.Task, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, agent_id, task_type, input, output, status, error, created_at, started_at, completed_at
+		FROM tasks WHERE agent_id = ? ORDER BY created_at DESC
+	`, agentID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var t models.Task
+		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
+}
+
+func (db *DB) UpdateTaskStatus(id uuid.UUID, status models.TaskStatus, output string, errMsg string) error {
+	now := time.Now()
+	var completedAt interface{}
+	if status == models.TaskStatusRunning {
+		_, err := db.conn.Exec(`
+			UPDATE tasks SET status = ?, started_at = ? WHERE id = ? AND status = 'pending'
+		`, status, now, id.String())
+		return err
+	}
+	if status == models.TaskStatusCompleted || status == models.TaskStatusFailed {
+		completedAt = now
+	}
+	_, err := db.conn.Exec(`
+		UPDATE tasks SET status = ?, output = ?, error = ?, completed_at = ? WHERE id = ?
+	`, status, output, errMsg, completedAt, id.String())
+	return err
+}
+
+func (db *DB) ClaimTasks(agentID uuid.UUID, limit int) ([]models.Task, error) {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query(`
+		SELECT id FROM tasks 
+		WHERE agent_id = ? AND status = 'pending' 
+		ORDER BY created_at ASC LIMIT ?
+		FOR UPDATE SKIP LOCKED
+	`, agentID.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var taskIDs []string
+	for rows.Next() {
+		var id string
+		rows.Scan(&id)
+		taskIDs = append(taskIDs, id)
+	}
+	rows.Close()
+
+	if len(taskIDs) == 0 {
+		return []models.Task{}, nil
+	}
+
+	now := time.Now()
+	placeholders := ""
+	for i := range taskIDs {
+		if i > 0 {
+			placeholders += ","
+		}
+		placeholders += "?"
+	}
+	taskIDs = append(taskIDs, agentID.String())
+
+	_, err = tx.Exec(`
+		UPDATE tasks SET status = 'running', started_at = ? 
+		WHERE id IN (SELECT id FROM tasks WHERE agent_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT ?)
+	`, now, agentID.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.Commit()
+
+	var tasks []models.Task
+	for _, tid := range taskIDs[:len(taskIDs)-1] {
+		id, _ := uuid.Parse(tid)
+		t, err := db.GetTask(id)
+		if err != nil {
+			continue
+		}
+		tasks = append(tasks, *t)
+	}
+
+	return tasks, nil
+}
+
+func (db *DB) DeleteTask(id uuid.UUID) error {
+	_, err := db.conn.Exec("DELETE FROM tasks WHERE id = ?", id.String())
+	return err
 }

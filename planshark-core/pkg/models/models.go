@@ -36,22 +36,22 @@ type Gateway struct {
 }
 
 type Agent struct {
-	ID           uuid.UUID   `json:"id"`
-	Name         string      `json:"name"`
-	GatewayID    *uuid.UUID  `json:"gateway_id,omitempty"`
-	Gateway      *Gateway    `json:"gateway,omitempty"`
-	Model        string      `json:"model"`
-	ContainerID  string      `json:"container_id,omitempty"`
-	Status       AgentStatus `json:"status"`
-	CreatedAt    time.Time   `json:"created_at"`
-	UpdatedAt    time.Time   `json:"updated_at"`
+	ID          uuid.UUID   `json:"id"`
+	Name        string      `json:"name"`
+	GatewayID   *uuid.UUID  `json:"gateway_id,omitempty"`
+	Gateway     *Gateway    `json:"gateway,omitempty"`
+	Model       string      `json:"model"`
+	ContainerID string      `json:"container_id,omitempty"`
+	Status      AgentStatus `json:"status"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 type AgentConfig struct {
-	AgentID    uuid.UUID `json:"agent_id"`
-	Heartbeat  string    `json:"heartbeat_md"`
-	AgentMD    string    `json:"agent_md"`
-	ToolMD     string    `json:"tool_md"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	Heartbeat string    `json:"heartbeat_md"`
+	AgentMD   string    `json:"agent_md"`
+	ToolMD    string    `json:"tool_md"`
 }
 
 type RequestLog struct {
@@ -105,13 +105,55 @@ type UpdateAgentConfigRequest struct {
 }
 
 type Stats struct {
-	TotalAgents      int            `json:"total_agents"`
-	RunningAgents    int            `json:"running_agents"`
-	StoppedAgents    int            `json:"stopped_agents"`
-	ErrorAgents      int            `json:"error_agents"`
-	TotalGateways    int            `json:"total_gateways"`
-	ActiveGateways   int            `json:"active_gateways"`
-	TotalRequests    int64          `json:"total_requests"`
-	TotalInputTokens int64          `json:"total_input_tokens"`
-	TotalOutputTokens int64         `json:"total_output_tokens"`
+	TotalAgents       int   `json:"total_agents"`
+	RunningAgents     int   `json:"running_agents"`
+	StoppedAgents     int   `json:"stopped_agents"`
+	ErrorAgents       int   `json:"error_agents"`
+	TotalGateways     int   `json:"total_gateways"`
+	ActiveGateways    int   `json:"active_gateways"`
+	TotalRequests     int64 `json:"total_requests"`
+	TotalInputTokens  int64 `json:"total_input_tokens"`
+	TotalOutputTokens int64 `json:"total_output_tokens"`
+}
+
+type TaskStatus string
+
+const (
+	TaskStatusPending   TaskStatus = "pending"
+	TaskStatusRunning   TaskStatus = "running"
+	TaskStatusCompleted TaskStatus = "completed"
+	TaskStatusFailed    TaskStatus = "failed"
+	TaskStatusCancelled TaskStatus = "cancelled"
+)
+
+type TaskType string
+
+const (
+	TaskTypeChat    TaskType = "chat"
+	TaskTypeExecute TaskType = "execute"
+	TaskTypeSystem  TaskType = "system"
+)
+
+type Task struct {
+	ID          uuid.UUID  `json:"id"`
+	AgentID     uuid.UUID  `json:"agent_id"`
+	TaskType    TaskType   `json:"task_type"`
+	Input       string     `json:"input"`
+	Output      string     `json:"output,omitempty"`
+	Status      TaskStatus `json:"status"`
+	Error       string     `json:"error,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	StartedAt   time.Time  `json:"started_at,omitempty"`
+	CompletedAt time.Time  `json:"completed_at,omitempty"`
+}
+
+type CreateTaskRequest struct {
+	TaskType TaskType `json:"task_type"`
+	Input    string   `json:"input"`
+}
+
+type ToolDefinition struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  string `json:"parameters"`
 }

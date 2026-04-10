@@ -8,15 +8,16 @@ RUN apt-get update && apt-get install -y \
     htop \
     && rm -rf /var/lib/apt/lists/*
 
-COPY planshark-agent/src/agent.py /agent/agent.py
-COPY planshark-agent/src/agent.md /agent/agent.md
-COPY planshark-agent/src/tool.md /agent/tool.md
-COPY planshark-agent/src/heartbeat.md /agent/heartbeat.md
+COPY planshark-agent/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY planshark-agent/src/ /agent/
+RUN mkdir -p /agent/logs
 
 RUN useradd -m agent && \
-    mkdir -p /home/agent /agent/logs && \
     chown -R agent:agent /agent
 
 USER agent
+WORKDIR /agent
 
 CMD ["python", "agent.py"]

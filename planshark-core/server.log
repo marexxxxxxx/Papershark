@@ -1,53 +1,16 @@
-2026/04/10 16:18:45 Database initialized
-2026/04/10 16:18:45 Docker client connected
-2026/04/10 16:18:45 Planshark starting on :8080
-2026/04/10 16:18:45 Data directory: ./data
-2026/04/10 16:18:45 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:51476 - 200 5B in 565.818µs
-2026/04/10 16:18:45 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:51488 - 200 179B in 878.964µs
-2026/04/10 16:18:47 "GET http://localhost:8080/health HTTP/1.1" from [::1]:51496 - 200 16B in 71.75µs
-2026/04/10 16:18:50 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:49666 - 200 5B in 282.491µs
-2026/04/10 16:18:50 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:49676 - 200 179B in 1.50817ms
-2026/04/10 16:18:55 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:49678 - 200 5B in 290.392µs
-2026/04/10 16:18:55 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:49682 - 200 179B in 553.574µs
-2026/04/10 16:19:00 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59580 - 200 5B in 290.526µs
-2026/04/10 16:19:00 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59590 - 200 179B in 1.755612ms
-2026/04/10 16:19:05 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59598 - 200 5B in 242.004µs
-2026/04/10 16:19:05 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59600 - 200 179B in 646.988µs
-2026/04/10 16:19:10 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:46430 - 200 5B in 281.772µs
-2026/04/10 16:19:10 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:46438 - 200 179B in 472.465µs
-2026/04/10 16:19:15 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:46444 - 200 5B in 325.173µs
-2026/04/10 16:19:15 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:46456 - 200 179B in 525.948µs
-2026/04/10 16:19:20 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:50308 - 200 5B in 227.641µs
-2026/04/10 16:19:20 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:50322 - 200 179B in 569.534µs
-2026/04/10 16:19:25 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:50334 - 200 5B in 272.684µs
-2026/04/10 16:19:25 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:50340 - 200 179B in 405.634µs
-2026/04/10 16:19:30 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:38380 - 200 5B in 266.276µs
-2026/04/10 16:19:30 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:38386 - 200 179B in 626.484µs
-2026/04/10 16:19:35 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:38388 - 200 5B in 226.169µs
-2026/04/10 16:19:35 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:38404 - 200 179B in 624.845µs
-2026/04/10 16:19:40 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:39288 - 200 5B in 277.033µs
-2026/04/10 16:19:40 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:39292 - 200 179B in 727.362µs
-2026/04/10 16:19:45 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:39298 - 200 5B in 253.167µs
-2026/04/10 16:19:45 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:39314 - 200 179B in 560.241µs
-2026/04/10 16:19:50 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:55322 - 200 5B in 307.16µs
-2026/04/10 16:19:50 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:55334 - 200 179B in 677.128µs
-2026/04/10 16:19:55 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:55346 - 200 5B in 215.51µs
-2026/04/10 16:19:55 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:55358 - 200 179B in 531.36µs
-2026/04/10 16:20:00 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59700 - 200 5B in 241.644µs
-2026/04/10 16:20:00 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59710 - 200 179B in 515.72µs
-2026/04/10 16:20:05 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59714 - 200 5B in 290.232µs
-2026/04/10 16:20:05 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59726 - 200 179B in 584.863µs
-2026/04/10 16:20:10 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59372 - 200 5B in 258.885µs
-2026/04/10 16:20:10 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59378 - 200 179B in 530.575µs
-2026/04/10 16:20:15 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:59380 - 200 5B in 304.132µs
-2026/04/10 16:20:15 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:59392 - 200 179B in 558.128µs
-2026/04/10 16:20:20 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:41488 - 200 5B in 283.184µs
-2026/04/10 16:20:20 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:41502 - 200 179B in 587.628µs
-2026/04/10 16:20:25 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:41516 - 200 5B in 229.761µs
-2026/04/10 16:20:25 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:41532 - 200 179B in 596.334µs
-2026/04/10 16:20:30 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:57286 - 200 5B in 273.741µs
-2026/04/10 16:20:30 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:57288 - 200 179B in 1.775526ms
-2026/04/10 16:20:35 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:57298 - 200 5B in 249.817µs
-2026/04/10 16:20:35 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:57312 - 200 179B in 587.406µs
-2026/04/10 16:20:40 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:37624 - 200 5B in 239.079µs
-2026/04/10 16:20:40 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:37626 - 200 179B in 685.675µs
+2026/04/10 18:47:48 Database initialized
+2026/04/10 18:47:48 Docker client connected
+2026/04/10 18:47:48 Registered gateway: Test (ollama)
+2026/04/10 18:47:48 Registered gateway: test (ollama)
+2026/04/10 18:47:48 Registered gateway: Ollama Rechner (llamacpp)
+2026/04/10 18:47:48 Planshark starting on :8080
+2026/04/10 18:47:48 Data directory: ../data
+2026/04/10 18:47:50 "GET http://localhost:8080/health HTTP/1.1" from [::1]:52904 - 200 16B in 93.176µs
+2026/04/10 18:48:12 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:33852 - 200 521B in 981.127µs
+2026/04/10 18:48:12 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:33860 - 200 179B in 737.349µs
+2026/04/10 18:48:12 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:33876 - 200 179B in 432.819µs
+2026/04/10 18:48:12 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:33868 - 200 521B in 1.154043ms
+2026/04/10 18:49:12 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:46180 - 200 521B in 365.534µs
+2026/04/10 18:49:12 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:46184 - 200 179B in 504.868µs
+2026/04/10 18:49:12 "GET http://localhost:8080/api/v1/agents HTTP/1.1" from [::1]:46194 - 200 521B in 385.889µs
+2026/04/10 18:49:12 "GET http://localhost:8080/api/v1/stats HTTP/1.1" from [::1]:46210 - 200 179B in 485.629µs

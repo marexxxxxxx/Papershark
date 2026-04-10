@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -414,4 +415,169 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	agentID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid agent id", http.StatusBadRequest)
+		return
+	}
+
+	var req models.CreateTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Input == "" {
+		http.Error(w, "input is required", http.StatusBadRequest)
+		return
+	}
+
+	task := &models.Task{
+		AgentID:  agentID,
+		TaskType: models.TaskTypeChat,
+		Input:    req.Input,
+	}
+
+	if req.TaskType != "" {
+		task.TaskType = req.TaskType
+	}
+
+	if err := h.db.CreateTask(task); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(task)
+}
+
+func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	agentID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid agent id", http.StatusBadRequest)
+		return
+	}
+
+	tasks, err := h.db.ListTasksByAgent(agentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(tasks)
+}
+
+func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid task id", http.StatusBadRequest)
+		return
+	}
+
+	task, err := h.db.GetTask(taskID)
+	if err != nil {
+		http.Error(w, "task not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(task)
+}
+
+func (h *Handler) PollTasks(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	agentID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid agent id", http.StatusBadRequest)
+		return
+	}
+
+	limit := 5
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	tasks, err := h.db.ClaimTasks(agentID, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(tasks)
+}
+
+func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Output string `json:"output"`
+		Error  string `json:"error"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	status := models.TaskStatusCompleted
+	if req.Error != "" {
+		status = models.TaskStatusFailed
+	}
+
+	if err := h.db.UpdateTaskStatus(taskID, status, req.Output, req.Error); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": string(status)})
+}
+
+func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid task id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.db.DeleteTask(taskID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
+	gateways, err := h.db.ListGateways()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type modelInfo struct {
+		ID     string `json:"id"`
+		Object string `json:"object"`
+	}
+	models := make([]modelInfo, 0)
+	for _, g := range gateways {
+		models = append(models, modelInfo{
+			ID:     g.Model,
+			Object: "model",
+		})
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"object": "list",
+		"data":   models,
+	})
 }

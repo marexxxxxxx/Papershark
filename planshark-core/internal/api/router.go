@@ -31,6 +31,13 @@ func NewRouter(h *handlers.Handler) *chi.Mux {
 		r.Put("/agents/{id}/config", h.UpdateAgentConfig)
 		r.Get("/agents/{id}/logs", h.GetAgentLogs)
 
+		r.Get("/agents/{id}/tasks", h.ListTasks)
+		r.Post("/agents/{id}/tasks", h.CreateTask)
+		r.Get("/agents/{id}/tasks/poll", h.PollTasks)
+		r.Get("/tasks/{id}", h.GetTask)
+		r.Post("/tasks/{id}/complete", h.CompleteTask)
+		r.Delete("/tasks/{id}", h.DeleteTask)
+
 		r.Get("/gateways", h.ListGateways)
 		r.Post("/gateways", h.CreateGateway)
 		r.Get("/gateways/{id}", h.GetGateway)
@@ -38,6 +45,11 @@ func NewRouter(h *handlers.Handler) *chi.Mux {
 		r.Delete("/gateways/{id}", h.DeleteGateway)
 
 		r.Post("/chat", h.Chat)
+	})
+
+	r.Route("/v1", func(r chi.Router) {
+		r.Post("/chat/completions", h.Chat)
+		r.Get("/models", h.ListModels)
 	})
 
 	return r

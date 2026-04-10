@@ -4,6 +4,7 @@ import sys
 import json
 import asyncio
 import logging
+import httpx
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
@@ -95,13 +96,8 @@ class LLMClient:
     async def _get_client(self):
         if self.client is None:
             from openai import AsyncOpenAI
-            import httpx
 
-            self.client = AsyncOpenAI(
-                base_url=self.base_url,
-                api_key=self.api_key,
-                http_client=httpx.Client(timeout=300.0),
-            )
+            self.client = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
         return self.client
 
     async def chat(
@@ -145,13 +141,49 @@ class AgentRuntime:
         return "You are a helpful AI agent."
 
     def load_tools(self) -> List[Dict]:
-        try:
-            from tools import get_registry
+        from tools import get_registry
 
-            registry = get_registry()
-            return registry.list()
-        except ImportError:
-            logging.warning("Tool registry not available")
+        registry = get_registry()
+        tools = registry.list()
+
+        if tools:
+            logging.info(f"Loaded {len(tools)} tools from registry")
+            return tools
+
+        tools = self.load_tools_from_md()
+        if tools:
+            logging.info(f"Loaded {len(tools)} tools from tool.md")
+            return tools
+
+        logging.warning("No tools available")
+        return []
+
+    def load_tools_from_md(self) -> List[Dict]:
+        """Parse tool.md for JSON schema definitions"""
+        path = os.path.join(AGENT_DIR, "tool.md")
+        if not os.path.exists(path):
+            return []
+
+        try:
+            with open(path, "r") as f:
+                content = f.read()
+
+            import re
+
+            json_blocks = re.findall(r"```json\n({.*?})\n```", content, re.DOTALL)
+
+            tools = []
+            for block in json_blocks:
+                try:
+                    tool = json.loads(block)
+                    if "function" in tool:
+                        tools.append(tool)
+                except json.JSONDecodeError:
+                    continue
+
+            return tools
+        except Exception as e:
+            logging.warning(f"Failed to parse tool.md: {e}")
             return []
 
     async def poll_tasks(self, limit: int = 5) -> List[Dict]:

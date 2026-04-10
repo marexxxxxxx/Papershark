@@ -346,12 +346,19 @@ func (db *DB) CreateTask(t *models.Task) error {
 
 func (db *DB) GetTask(id uuid.UUID) (*models.Task, error) {
 	t := &models.Task{}
+	var startedAt, completedAt sql.NullTime
 	err := db.conn.QueryRow(`
 		SELECT id, agent_id, task_type, input, output, status, error, created_at, started_at, completed_at
 		FROM tasks WHERE id = ?
-	`, id.String()).Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt)
+	`, id.String()).Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &startedAt, &completedAt)
 	if err != nil {
 		return nil, err
+	}
+	if startedAt.Valid {
+		t.StartedAt = startedAt.Time
+	}
+	if completedAt.Valid {
+		t.CompletedAt = completedAt.Time
 	}
 	return t, nil
 }
@@ -369,8 +376,15 @@ func (db *DB) GetTaskByAgentAndStatus(agentID uuid.UUID, status models.TaskStatu
 	var tasks []models.Task
 	for rows.Next() {
 		var t models.Task
-		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt); err != nil {
+		var startedAt, completedAt sql.NullTime
+		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &startedAt, &completedAt); err != nil {
 			return nil, err
+		}
+		if startedAt.Valid {
+			t.StartedAt = startedAt.Time
+		}
+		if completedAt.Valid {
+			t.CompletedAt = completedAt.Time
 		}
 		tasks = append(tasks, t)
 	}
@@ -390,8 +404,15 @@ func (db *DB) ListTasksByAgent(agentID uuid.UUID) ([]models.Task, error) {
 	var tasks []models.Task
 	for rows.Next() {
 		var t models.Task
-		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &t.StartedAt, &t.CompletedAt); err != nil {
+		var startedAt, completedAt sql.NullTime
+		if err := rows.Scan(&t.ID, &t.AgentID, &t.TaskType, &t.Input, &t.Output, &t.Status, &t.Error, &t.CreatedAt, &startedAt, &completedAt); err != nil {
 			return nil, err
+		}
+		if startedAt.Valid {
+			t.StartedAt = startedAt.Time
+		}
+		if completedAt.Valid {
+			t.CompletedAt = completedAt.Time
 		}
 		tasks = append(tasks, t)
 	}
@@ -417,17 +438,10 @@ func (db *DB) UpdateTaskStatus(id uuid.UUID, status models.TaskStatus, output st
 }
 
 func (db *DB) ClaimTasks(agentID uuid.UUID, limit int) ([]models.Task, error) {
-	tx, err := db.conn.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	rows, err := tx.Query(`
+	rows, err := db.conn.Query(`
 		SELECT id FROM tasks 
 		WHERE agent_id = ? AND status = 'pending' 
 		ORDER BY created_at ASC LIMIT ?
-		FOR UPDATE SKIP LOCKED
 	`, agentID.String(), limit)
 	if err != nil {
 		return nil, err
@@ -446,27 +460,15 @@ func (db *DB) ClaimTasks(agentID uuid.UUID, limit int) ([]models.Task, error) {
 	}
 
 	now := time.Now()
-	placeholders := ""
-	for i := range taskIDs {
-		if i > 0 {
-			placeholders += ","
-		}
-		placeholders += "?"
+	for _, tid := range taskIDs {
+		db.conn.Exec(`
+			UPDATE tasks SET status = 'running', started_at = ? 
+			WHERE id = ? AND status = 'pending'
+		`, now, tid)
 	}
-	taskIDs = append(taskIDs, agentID.String())
-
-	_, err = tx.Exec(`
-		UPDATE tasks SET status = 'running', started_at = ? 
-		WHERE id IN (SELECT id FROM tasks WHERE agent_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT ?)
-	`, now, agentID.String(), limit)
-	if err != nil {
-		return nil, err
-	}
-
-	tx.Commit()
 
 	var tasks []models.Task
-	for _, tid := range taskIDs[:len(taskIDs)-1] {
+	for _, tid := range taskIDs {
 		id, _ := uuid.Parse(tid)
 		t, err := db.GetTask(id)
 		if err != nil {

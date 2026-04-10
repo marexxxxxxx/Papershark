@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+USER root
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    vim \
+    htop \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY planshark-agent/src/agent.py /agent/agent.py
+COPY planshark-agent/src/agent.md /agent/agent.md
+COPY planshark-agent/src/tool.md /agent/tool.md
+COPY planshark-agent/src/heartbeat.md /agent/heartbeat.md
+
+RUN useradd -m agent && mkdir -p /home/agent && chown agent:agent /home/agent
+
+USER agent
+
+CMD ["python", "agent.py"]

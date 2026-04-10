@@ -1,0 +1,2 @@
+# Planshark Agent Dependencies
+# Minimal requirements for the agent runtime

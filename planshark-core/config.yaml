@@ -1,0 +1,9 @@
+server:
+  addr: ":8080"
+  data_dir: "./data"
+
+docker:
+  base_dir: "./data/docker"
+
+logging:
+  level: "info"

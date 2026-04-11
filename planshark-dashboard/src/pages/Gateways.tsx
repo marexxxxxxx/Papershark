@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useStore } from '@/stores/store'
-import { Plus, Trash2, Globe } from 'lucide-react'
+import { Plus, Trash2, Globe, Pencil, X } from 'lucide-react'
+import { Gateway } from '@/lib/api'
 
 export default function Gateways() {
-  const { gateways, createGateway, deleteGateway } = useStore()
+  const { gateways, createGateway, updateGateway, deleteGateway } = useStore()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingGateway, setEditingGateway] = useState<Gateway | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     provider: 'ollama' as 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut',
@@ -43,6 +45,55 @@ export default function Gateways() {
     }
   }
 
+  const handleEdit = (gateway: Gateway) => {
+    setEditingGateway(gateway)
+    setFormData({
+      name: gateway.name,
+      provider: gateway.provider as any,
+      endpoint: gateway.endpoint,
+      api_key: gateway.api_key || '',
+      model: gateway.model,
+      rate_limit: gateway.rate_limit,
+      timeout_sec: gateway.timeout_sec,
+    })
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingGateway) return
+    setLoading(true)
+    try {
+      await updateGateway(editingGateway.id, formData)
+      setEditingGateway(null)
+      setFormData({
+        name: '',
+        provider: 'ollama',
+        endpoint: '',
+        api_key: '',
+        model: '',
+        rate_limit: 2,
+        timeout_sec: 60,
+      })
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
+  const cancelForm = () => {
+    setShowCreate(false)
+    setEditingGateway(null)
+    setFormData({
+      name: '',
+      provider: 'ollama',
+      endpoint: '',
+      api_key: '',
+      model: '',
+      rate_limit: 2,
+      timeout_sec: 60,
+    })
+  }
+
   const getProviderBadge = (provider: string) => {
     const colors: Record<string, string> = {
       ollama: 'bg-purple-500',
@@ -75,10 +126,10 @@ export default function Gateways() {
         </button>
       </div>
 
-      {showCreate && (
+      {(showCreate || editingGateway) && (
         <div className="border rounded-lg p-6 bg-card">
-          <h3 className="text-lg font-semibold mb-4">Add New Gateway</h3>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <h3 className="text-lg font-semibold mb-4">{editingGateway ? 'Edit Gateway' : 'Add New Gateway'}</h3>
+          <form onSubmit={editingGateway ? handleUpdate : handleCreate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
@@ -180,11 +231,11 @@ export default function Gateways() {
                 disabled={loading}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create'}
+                {loading ? (editingGateway ? 'Saving...' : 'Creating...') : (editingGateway ? 'Save' : 'Create')}
               </button>
               <button
                 type="button"
-                onClick={() => setShowCreate(false)}
+                onClick={cancelForm}
                 className="px-4 py-2 border rounded-lg hover:bg-muted"
               >
                 Cancel
@@ -205,12 +256,20 @@ export default function Gateways() {
                   {gw.provider}
                 </span>
               </div>
-              <button
-                onClick={() => handleDelete(gw.id)}
-                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleEdit(gw)}
+                  className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(gw.id)}
+                  className="p-2 text-destructive hover:bg-destructive/10 rounded-lg"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -249,7 +308,7 @@ export default function Gateways() {
         ))}
       </div>
 
-      {(gateways ?? []).length === 0 && !showCreate && (
+      {(gateways ?? []).length === 0 && !showCreate && !editingGateway && (
         <div className="text-center py-12 border rounded-lg">
           <Globe className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">No gateways configured</h3>

@@ -24,6 +24,7 @@ func NewRouter(h *handlers.Handler) *chi.Mux {
 		r.Get("/agents", h.ListAgents)
 		r.Post("/agents", h.CreateAgent)
 		r.Get("/agents/{id}", h.GetAgent)
+		r.Put("/agents/{id}", h.UpdateAgent)
 		r.Delete("/agents/{id}", h.DeleteAgent)
 		r.Post("/agents/{id}/start", h.StartAgent)
 		r.Post("/agents/{id}/stop", h.StopAgent)

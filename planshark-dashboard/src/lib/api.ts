@@ -58,6 +58,12 @@ export interface CreateAgentRequest {
   tool_md?: string
 }
 
+export interface UpdateAgentRequest {
+  name?: string
+  gateway_id?: string
+  model?: string
+}
+
 export interface CreateGatewayRequest {
   name: string
   provider: 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut'
@@ -86,6 +92,7 @@ export const agentApi = {
   list: () => api.get<Agent[]>('/agents').then(r => r.data),
   get: (id: string) => api.get<Agent>(`/agents/${id}`).then(r => r.data),
   create: (data: CreateAgentRequest) => api.post<Agent>('/agents', data).then(r => r.data),
+  update: (id: string, data: Partial<UpdateAgentRequest>) => api.put<Agent>(`/agents/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/agents/${id}`),
   start: (id: string) => api.post<Agent>(`/agents/${id}/start`).then(r => r.data),
   stop: (id: string) => api.post<Agent>(`/agents/${id}/stop`).then(r => r.data),

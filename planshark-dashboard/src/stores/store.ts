@@ -21,11 +21,13 @@ interface AppState {
   fetchStats: () => Promise<void>
   selectAgent: (id: string) => Promise<void>
   createAgent: (data: { name: string; gateway_id: string; model: string; agent_md?: string }) => Promise<Agent>
+  updateAgent: (id: string, data: { name?: string; gateway_id?: string; model?: string }) => Promise<Agent>
   deleteAgent: (id: string) => Promise<void>
   startAgent: (id: string) => Promise<void>
   stopAgent: (id: string) => Promise<void>
   updateAgentConfig: (id: string, config: Partial<AgentConfig>) => Promise<void>
   createGateway: (data: { name: string; provider: string; endpoint: string; api_key?: string; model: string; rate_limit: number; timeout_sec?: number }) => Promise<Gateway>
+  updateGateway: (id: string, data: { name?: string; provider?: string; endpoint?: string; api_key?: string; model?: string; rate_limit?: number; timeout_sec?: number }) => Promise<Gateway>
   deleteGateway: (id: string) => Promise<void>
   sendChatMessage: (agentId: string, message: string) => Promise<string>
   clearChat: (agentId: string) => Promise<void>
@@ -90,6 +92,12 @@ export const useStore = create<AppState>((set, get) => ({
     return agent
   },
 
+  updateAgent: async (id: string, data) => {
+    const agent = await agentApi.update(id, data)
+    await get().fetchAgents()
+    return agent
+  },
+
   deleteAgent: async (id: string) => {
     await agentApi.delete(id)
     await get().fetchAgents()
@@ -118,6 +126,12 @@ export const useStore = create<AppState>((set, get) => ({
     const gateway = await gatewayApi.create(data as any)
     await get().fetchGateways()
     await get().fetchStats()
+    return gateway
+  },
+
+  updateGateway: async (id: string, data) => {
+    const gateway = await gatewayApi.update(id, data as any)
+    await get().fetchGateways()
     return gateway
   },
 

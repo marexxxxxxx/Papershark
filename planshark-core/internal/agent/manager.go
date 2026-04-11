@@ -164,6 +164,13 @@ func (m *Manager) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *Manager) Update(a *models.Agent) error {
+	if err := m.db.UpdateAgent(a); err != nil {
+		return fmt.Errorf("failed to update agent: %w", err)
+	}
+	return nil
+}
+
 func (m *Manager) GetConfig(id uuid.UUID) (*models.AgentConfig, error) {
 	return m.db.GetAgentConfig(id)
 }

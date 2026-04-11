@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useStore } from '@/stores/store'
 import { Link } from 'react-router-dom'
-import { Plus, Play, Square, Trash2, Bot } from 'lucide-react'
+import { Plus, Play, Square, Trash2, Bot, Pencil } from 'lucide-react'
+import { Agent } from '@/lib/api'
 
 export default function Agents() {
-  const { agents, gateways, createAgent, startAgent, stopAgent, deleteAgent } = useStore()
+  const { agents, gateways, createAgent, updateAgent, startAgent, stopAgent, deleteAgent } = useStore()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     gateway_id: '',
@@ -46,6 +48,50 @@ export default function Agents() {
     }
   }
 
+  const handleEdit = (agent: Agent) => {
+    setEditingAgent(agent)
+    setFormData({
+      name: agent.name,
+      gateway_id: agent.gateway_id || '',
+      model: agent.model || '',
+      agent_md: '',
+    })
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingAgent) return
+    setLoading(true)
+    try {
+      await updateAgent(editingAgent.id, {
+        name: formData.name,
+        gateway_id: formData.gateway_id || undefined,
+        model: formData.model || undefined,
+      })
+      setEditingAgent(null)
+      setFormData({
+        name: '',
+        gateway_id: '',
+        model: '',
+        agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+      })
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
+  const cancelForm = () => {
+    setShowCreate(false)
+    setEditingAgent(null)
+    setFormData({
+      name: '',
+      gateway_id: '',
+      model: '',
+      agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -62,10 +108,10 @@ export default function Agents() {
         </button>
       </div>
 
-      {showCreate && (
+      {(showCreate || editingAgent) && (
         <div className="border rounded-lg p-6 bg-card">
-          <h3 className="text-lg font-semibold mb-4">Create New Agent</h3>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <h3 className="text-lg font-semibold mb-4">{editingAgent ? 'Edit Agent' : 'Create New Agent'}</h3>
+          <form onSubmit={editingAgent ? handleUpdate : handleCreate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
@@ -103,6 +149,7 @@ export default function Agents() {
                 placeholder="llama3:70b"
               />
             </div>
+            {!editingAgent && (
             <div>
               <label className="block text-sm font-medium mb-1">Agent Instructions (Markdown)</label>
               <textarea
@@ -112,17 +159,18 @@ export default function Agents() {
                 rows={6}
               />
             </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={loading}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create'}
+                {loading ? (editingAgent ? 'Saving...' : 'Creating...') : (editingAgent ? 'Save' : 'Create')}
               </button>
               <button
                 type="button"
-                onClick={() => setShowCreate(false)}
+                onClick={cancelForm}
                 className="px-4 py-2 border rounded-lg hover:bg-muted"
               >
                 Cancel
@@ -167,6 +215,12 @@ export default function Agents() {
                 </button>
               )}
               <button
+                onClick={() => handleEdit(agent)}
+                className="px-3 py-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => handleDelete(agent.id)}
                 className="px-3 py-2 text-destructive hover:bg-destructive/10 rounded-lg"
               >
@@ -177,7 +231,7 @@ export default function Agents() {
         ))}
       </div>
 
-      {(agents ?? []).length === 0 && !showCreate && (
+      {(agents ?? []).length === 0 && !showCreate && !editingAgent && (
         <div className="text-center py-12 border rounded-lg">
           <Bot className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">No agents yet</h3>

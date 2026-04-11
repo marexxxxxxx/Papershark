@@ -95,6 +95,12 @@ type CreateAgentRequest struct {
 	ToolMD    string    `json:"tool_md,omitempty"`
 }
 
+type UpdateAgentRequest struct {
+	Name      string     `json:"name,omitempty"`
+	GatewayID *uuid.UUID `json:"gateway_id,omitempty"`
+	Model     string     `json:"model,omitempty"`
+}
+
 type CreateGatewayRequest struct {
 	Name       string       `json:"name"`
 	Provider   ProviderType `json:"provider"`

@@ -7,8 +7,9 @@ export default function Gateways() {
   const [showCreate, setShowCreate] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
-    provider: 'ollama' as 'ollama' | 'llamacpp' | 'openai',
+    provider: 'ollama' as 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut',
     endpoint: '',
+    api_key: '',
     model: '',
     rate_limit: 2,
     timeout_sec: 60,
@@ -25,6 +26,7 @@ export default function Gateways() {
         name: '',
         provider: 'ollama',
         endpoint: '',
+        api_key: '',
         model: '',
         rate_limit: 2,
         timeout_sec: 60,
@@ -42,12 +44,19 @@ export default function Gateways() {
   }
 
   const getProviderBadge = (provider: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       ollama: 'bg-purple-500',
+      ollama_cloud: 'bg-purple-600',
       llamacpp: 'bg-orange-500',
       openai: 'bg-green-500',
+      anthropic: 'bg-yellow-600',
+      gemini: 'bg-blue-500',
+      cohere: 'bg-teal-500',
+      mistral: 'bg-indigo-500',
+      azure: 'bg-cyan-500',
+      mammut: 'bg-red-500',
     }
-    return colors[provider as keyof typeof colors] || 'bg-gray-500'
+    return colors[provider] || 'bg-gray-500'
   }
 
   return (
@@ -89,9 +98,16 @@ export default function Gateways() {
                   onChange={e => setFormData({ ...formData, provider: e.target.value as any })}
                   className="w-full px-3 py-2 border rounded-lg bg-background"
                 >
-                  <option value="ollama">Ollama</option>
+                  <option value="ollama">Ollama (Local)</option>
+                  <option value="ollama_cloud">Ollama Cloud</option>
                   <option value="llamacpp">llama.cpp</option>
-                  <option value="openai">OpenAI Compatible</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic Claude</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="cohere">Cohere</option>
+                  <option value="mistral">Mistral</option>
+                  <option value="azure">Azure OpenAI</option>
+                  <option value="mammut">Mammut.ai</option>
                 </select>
               </div>
             </div>
@@ -104,7 +120,7 @@ export default function Gateways() {
                 value={formData.endpoint}
                 onChange={e => setFormData({ ...formData, endpoint: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg bg-background"
-                placeholder={formData.provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:8080'}
+                placeholder={formData.provider === 'ollama' ? 'http://localhost:11434' : formData.provider === 'ollama_cloud' ? 'https://cloud.ollama.ai' : formData.provider === 'anthropic' ? 'https://api.anthropic.com' : formData.provider === 'gemini' ? 'https://generativelanguage.googleapis.com' : formData.provider === 'mammut' ? 'https://api.mammut.ai/v1' : 'https://api.openai.com/v1'}
               />
             </div>
 
@@ -117,7 +133,7 @@ export default function Gateways() {
                   value={formData.model}
                   onChange={e => setFormData({ ...formData, model: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg bg-background"
-                  placeholder="llama3:70b"
+                  placeholder={formData.provider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : formData.provider === 'gemini' ? 'gemini-1.5-pro' : formData.provider === 'cohere' ? 'command-r-plus' : formData.provider === 'mistral' ? 'mistral-large-latest' : formData.provider === 'mammut' ? 'llama-3.1-70b-instruct' : 'llama3:70b'}
                 />
               </div>
               <div>
@@ -142,6 +158,19 @@ export default function Gateways() {
                 value={formData.timeout_sec}
                 onChange={e => setFormData({ ...formData, timeout_sec: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-lg bg-background"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                API Key {!['ollama', 'llamacpp'].includes(formData.provider) && <span className="text-destructive">*</span>}
+              </label>
+              <input
+                type="password"
+                value={formData.api_key}
+                onChange={e => setFormData({ ...formData, api_key: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+                placeholder={['ollama', 'llamacpp'].includes(formData.provider) ? 'Optional (leave empty for local)' : 'Required'}
               />
             </div>
 

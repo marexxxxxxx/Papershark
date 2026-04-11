@@ -67,10 +67,10 @@ func (rl *RateLimiter) AvailableSlots() int {
 }
 
 type GatewayManager struct {
-	gateways    map[uuid.UUID]*ManagedGateway
+	gateways     map[uuid.UUID]*ManagedGateway
 	rateLimiters map[uuid.UUID]*RateLimiter
-	mu          sync.RWMutex
-	httpClient  *http.Client
+	mu           sync.RWMutex
+	httpClient   *http.Client
 }
 
 type ManagedGateway struct {
@@ -80,7 +80,7 @@ type ManagedGateway struct {
 
 func NewGatewayManager() *GatewayManager {
 	return &GatewayManager{
-		gateways:    make(map[uuid.UUID]*ManagedGateway),
+		gateways:     make(map[uuid.UUID]*ManagedGateway),
 		rateLimiters: make(map[uuid.UUID]*RateLimiter),
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
@@ -167,7 +167,39 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 			Stream: false,
 		}
 		reqBodyBytes, err = json.Marshal(reqBody)
-	case models.ProviderOpenAI:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+		reqBody = OpenAIRequest{
+			Model:    model,
+			Messages: messages,
+			Stream:   false,
+		}
+		reqBodyBytes, err = json.Marshal(reqBody)
+	case models.ProviderAnthropic:
+		systemPrompt := ""
+		var anthropicMessages []AnthropicMessage
+		for _, m := range messages {
+			if m["role"] == "system" {
+				systemPrompt = m["content"]
+			} else {
+				anthropicMessages = append(anthropicMessages, AnthropicMessage{
+					Role:    m["role"],
+					Content: m["content"],
+				})
+			}
+		}
+		reqBody = AnthropicRequest{
+			Model:     model,
+			Messages:  anthropicMessages,
+			MaxTokens: 4096,
+			System:    systemPrompt,
+		}
+		reqBodyBytes, err = json.Marshal(reqBody)
+	case models.ProviderGemini:
+		reqBody = GeminiRequest{
+			Contents: buildGeminiContents(messages),
+		}
+		reqBodyBytes, err = json.Marshal(reqBody)
+	case models.ProviderAzure:
 		reqBody = OpenAIRequest{
 			Model:    model,
 			Messages: messages,
@@ -188,8 +220,14 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 		endpoint += "/api/chat"
 	case models.ProviderLlamaCpp:
 		endpoint += "/completion"
-	case models.ProviderOpenAI:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
 		endpoint += "/chat/completions"
+	case models.ProviderAnthropic:
+		endpoint += "/v1/messages"
+	case models.ProviderGemini:
+		endpoint += "/v1beta/models/" + model + ":generateContent"
+	case models.ProviderAzure:
+		endpoint += "/openai/deployments/" + model + "/chat/completions?api-version=2024-02-01"
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBodyBytes))
@@ -198,8 +236,18 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if gateway.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+gateway.APIKey)
+	switch gateway.Provider {
+	case models.ProviderAnthropic:
+		req.Header.Set("x-api-key", gateway.APIKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	case models.ProviderGemini:
+		req.Header.Set("x-goog-api-key", gateway.APIKey)
+	case models.ProviderAzure:
+		req.Header.Set("api-key", gateway.APIKey)
+	default:
+		if gateway.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+gateway.APIKey)
+		}
 	}
 
 	resp, err := gm.httpClient.Do(req)
@@ -226,7 +274,7 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 		return &ChatResult{
 			Content:      ollamaResp.Message.Content,
 			InputTokens:  ollamaResp.PromptEvalCount,
-			OutputTokens:  ollamaResp.EvalCount,
+			OutputTokens: ollamaResp.EvalCount,
 		}, nil
 
 	case models.ProviderLlamaCpp:
@@ -240,7 +288,7 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 			OutputTokens: llamaResp.TokenCount,
 		}, nil
 
-	case models.ProviderOpenAI:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderAzure:
 		var openaiResp OpenAIResponse
 		if err := json.Unmarshal(body, &openaiResp); err != nil {
 			return nil, fmt.Errorf("failed to parse openai response: %w", err)
@@ -250,6 +298,32 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 				Content:      openaiResp.Choices[0].Message.Content,
 				InputTokens:  openaiResp.Usage.PromptTokens,
 				OutputTokens: openaiResp.Usage.CompletionTokens,
+			}, nil
+		}
+
+	case models.ProviderAnthropic:
+		var anthropicResp AnthropicResponse
+		if err := json.Unmarshal(body, &anthropicResp); err != nil {
+			return nil, fmt.Errorf("failed to parse anthropic response: %w", err)
+		}
+		if len(anthropicResp.Content) > 0 {
+			return &ChatResult{
+				Content:      anthropicResp.Content[0].Text,
+				InputTokens:  anthropicResp.Usage.InputTokens,
+				OutputTokens: anthropicResp.Usage.OutputTokens,
+			}, nil
+		}
+
+	case models.ProviderGemini:
+		var geminiResp GeminiResponse
+		if err := json.Unmarshal(body, &geminiResp); err != nil {
+			return nil, fmt.Errorf("failed to parse gemini response: %w", err)
+		}
+		if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
+			return &ChatResult{
+				Content:      geminiResp.Candidates[0].Content.Parts[0].Text,
+				InputTokens:  geminiResp.UsageMetadata.PromptTokenCount,
+				OutputTokens: geminiResp.UsageMetadata.CandidatesTokenCount,
 			}, nil
 		}
 	}
@@ -271,13 +345,13 @@ type OllamaRequest struct {
 }
 
 type OllamaResponse struct {
-	Model          string `json:"model"`
-	Message        struct {
+	Model   string `json:"model"`
+	Message struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"message"`
-	PromptEvalCount int `json:"prompt_eval_count"`
-	EvalCount       int `json:"eval_count"`
+	PromptEvalCount int  `json:"prompt_eval_count"`
+	EvalCount       int  `json:"eval_count"`
 	Done            bool `json:"done"`
 }
 
@@ -288,10 +362,10 @@ type LlamaCppRequest struct {
 }
 
 type LlamaCppResponse struct {
-	Content     string `json:"content"`
-	Stop        bool   `json:"stop"`
-	TokenCount  int    `json:"token_count"`
-	PromptEvalCount int `json:"prompt_eval_count,omitempty"`
+	Content         string `json:"content"`
+	Stop            bool   `json:"stop"`
+	TokenCount      int    `json:"token_count"`
+	PromptEvalCount int    `json:"prompt_eval_count,omitempty"`
 }
 
 type OpenAIRequest struct {
@@ -318,6 +392,115 @@ type OpenAIResponse struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage"`
+}
+
+type AnthropicMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type AnthropicRequest struct {
+	Model       string             `json:"model"`
+	Messages    []AnthropicMessage `json:"messages"`
+	MaxTokens   int                `json:"max_tokens"`
+	System      string             `json:"system,omitempty"`
+	Temperature float64            `json:"temperature,omitempty"`
+}
+
+type AnthropicResponse struct {
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Role    string `json:"role"`
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	StopReason   string `json:"stop_reason"`
+	StopSequence string `json:"stop_sequence,omitempty"`
+	Usage        struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+}
+
+type GeminiContent struct {
+	Role  string `json:"role"`
+	Parts []struct {
+		Text string `json:"text"`
+	} `json:"parts"`
+}
+
+type GeminiRequest struct {
+	Contents          []GeminiContent `json:"contents"`
+	SystemInstruction *struct {
+		Parts []struct {
+			Text string `json:"text"`
+		} `json:"parts"`
+	} `json:"systemInstruction,omitempty"`
+	GenerationConfig *struct {
+		Temperature     float64 `json:"temperature,omitempty"`
+		TopP            float64 `json:"topP,omitempty"`
+		TopK            int     `json:"topK,omitempty"`
+		MaxOutputTokens int     `json:"maxOutputTokens,omitempty"`
+	} `json:"generationConfig,omitempty"`
+}
+
+type GeminiResponse struct {
+	Candidates []struct {
+		Content struct {
+			Role  string `json:"role"`
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
+	UsageMetadata struct {
+		PromptTokenCount     int `json:"promptTokenCount"`
+		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		TotalTokenCount      int `json:"totalTokenCount"`
+	} `json:"usageMetadata"`
+}
+
+func buildGeminiContents(messages []map[string]string) []GeminiContent {
+	var contents []GeminiContent
+	var systemText string
+
+	for _, m := range messages {
+		role := m["role"]
+		if role == "system" {
+			systemText = m["content"]
+			continue
+		}
+		if role == "user" {
+			role = "user"
+		} else if role == "assistant" {
+			role = "model"
+		}
+		contents = append(contents, GeminiContent{
+			Role: role,
+			Parts: []struct {
+				Text string `json:"text"`
+			}{{Text: m["content"]}},
+		})
+	}
+
+	if systemText != "" && len(contents) > 0 {
+		contents[0].Role = "model"
+		req := GeminiRequest{
+			Contents: contents,
+		}
+		req.SystemInstruction = &struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		}{
+			Parts: []struct {
+				Text string `json:"text"`
+			}{{Text: systemText}},
+		}
+	}
+
+	return contents
 }
 
 type WsConn struct {

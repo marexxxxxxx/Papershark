@@ -9,9 +9,16 @@ import (
 type ProviderType string
 
 const (
-	ProviderOllama   ProviderType = "ollama"
-	ProviderLlamaCpp ProviderType = "llamacpp"
-	ProviderOpenAI   ProviderType = "openai"
+	ProviderOllama      ProviderType = "ollama"
+	ProviderLlamaCpp    ProviderType = "llamacpp"
+	ProviderOpenAI      ProviderType = "openai"
+	ProviderAnthropic   ProviderType = "anthropic"
+	ProviderGemini      ProviderType = "gemini"
+	ProviderCohere      ProviderType = "cohere"
+	ProviderMistral     ProviderType = "mistral"
+	ProviderAzure       ProviderType = "azure"
+	ProviderOllamaCloud ProviderType = "ollama_cloud"
+	ProviderMammut      ProviderType = "mammut"
 )
 
 type AgentStatus string

@@ -25,7 +25,7 @@ interface AppState {
   startAgent: (id: string) => Promise<void>
   stopAgent: (id: string) => Promise<void>
   updateAgentConfig: (id: string, config: Partial<AgentConfig>) => Promise<void>
-  createGateway: (data: { name: string; provider: string; endpoint: string; model: string; rate_limit: number; timeout_sec?: number }) => Promise<Gateway>
+  createGateway: (data: { name: string; provider: string; endpoint: string; api_key?: string; model: string; rate_limit: number; timeout_sec?: number }) => Promise<Gateway>
   deleteGateway: (id: string) => Promise<void>
   sendChatMessage: (agentId: string, message: string) => Promise<string>
   clearChat: (agentId: string) => Promise<void>

@@ -7,7 +7,7 @@ const api = axios.create({
 export interface Gateway {
   id: string
   name: string
-  provider: 'ollama' | 'llamacpp' | 'openai'
+  provider: 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut'
   endpoint: string
   api_key?: string
   model: string
@@ -60,7 +60,7 @@ export interface CreateAgentRequest {
 
 export interface CreateGatewayRequest {
   name: string
-  provider: 'ollama' | 'llamacpp' | 'openai'
+  provider: 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut'
   endpoint: string
   api_key?: string
   model: string

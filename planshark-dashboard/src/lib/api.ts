@@ -69,7 +69,7 @@ export interface CreateGatewayRequest {
   provider: 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut'
   endpoint: string
   api_key?: string
-  model: string
+  model?: string
   rate_limit: number
   timeout_sec: number
 }
@@ -114,6 +114,19 @@ export interface ConnectionTestResult {
   provider?: string
 }
 
+export interface GatewayChatRequest {
+  message: string
+  model: string
+}
+
+export interface GatewayChatResponse {
+  content: string
+  done: boolean
+  total_tokens: number
+  input_tokens: number
+  output_tokens: number
+}
+
 export const gatewayApi = {
   list: () => api.get<Gateway[]>('/gateways').then(r => r.data),
   get: (id: string) => api.get<Gateway>(`/gateways/${id}`).then(r => r.data),
@@ -122,6 +135,7 @@ export const gatewayApi = {
   delete: (id: string) => api.delete(`/gateways/${id}`),
   listModels: (id: string) => api.get<{ object: string; data: DiscoveredModel[] }>(`/gateways/${id}/models`).then(r => r.data),
   testConnection: (id: string) => api.post<ConnectionTestResult>(`/gateways/${id}/test`).then(r => r.data),
+  chat: (id: string, data: GatewayChatRequest) => api.post<GatewayChatResponse>(`/gateways/${id}/chat`, data).then(r => r.data),
 }
 
 export const chatApi = {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '@/stores/store'
-import { Plus, Trash2, Globe, Pencil, Loader2, RefreshCw, Wifi } from 'lucide-react'
+import { Plus, Trash2, Globe, Pencil, Loader2, RefreshCw, Wifi, MessageSquare, Send } from 'lucide-react'
 import { Gateway, DiscoveredModel, ConnectionTestResult, gatewayApi } from '@/lib/api'
 
 export default function Gateways() {
@@ -21,6 +21,12 @@ export default function Gateways() {
   const [discovering, setDiscovering] = useState(false)
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
   const [testing, setTesting] = useState(false)
+  const [testChatOpen, setTestChatOpen] = useState<string | null>(null)
+  const [testMessages, setTestMessages] = useState<{ role: string; content: string }[]>([])
+  const [testInput, setTestInput] = useState('')
+  const [selectedTestModel, setSelectedTestModel] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [testModels, setTestModels] = useState<DiscoveredModel[]>([])
 
   const handleTestConnection = async (gatewayId: string) => {
     setTesting(true)
@@ -43,6 +49,36 @@ export default function Gateways() {
       setDiscoveredModels([])
     }
     setDiscovering(false)
+  }
+
+  const openTestChat = async (gw: Gateway) => {
+    setTestChatOpen(gw.id)
+    setTestMessages([])
+    setTestInput('')
+    setSelectedTestModel('')
+    setTestModels([])
+    try {
+      const response = await gatewayApi.listModels(gw.id)
+      setTestModels(response.data || [])
+      if (response.data && response.data.length > 0) {
+        setSelectedTestModel(response.data[0].id)
+      }
+    } catch {}
+  }
+
+  const handleTestChat = async (gatewayId: string) => {
+    if (!testInput.trim() || !selectedTestModel) return
+    setChatLoading(true)
+    const userMsg = testInput
+    setTestInput('')
+    setTestMessages(prev => [...prev, { role: 'user', content: userMsg }])
+    try {
+      const result = await gatewayApi.chat(gatewayId, { message: userMsg, model: selectedTestModel })
+      setTestMessages(prev => [...prev, { role: 'assistant', content: result.content }])
+    } catch (e: any) {
+      setTestMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.response?.data || e.message}` }])
+    }
+    setChatLoading(false)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -204,14 +240,14 @@ export default function Gateways() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Default Model</label>
+                <label className="block text-sm font-medium mb-1">Default Model (optional)</label>
                 {discoveredModels.length > 0 ? (
                   <select
                     value={formData.model}
                     onChange={e => setFormData({ ...formData, model: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg bg-background"
                   >
-                    <option value="">Select model...</option>
+                    <option value="">Select later when creating agent</option>
                     {discoveredModels.map(m => (
                       <option key={m.id} value={m.id}>
                         {m.name} {m.size && `(${m.size})`}
@@ -222,11 +258,10 @@ export default function Gateways() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      required
                       value={formData.model}
                       onChange={e => setFormData({ ...formData, model: e.target.value })}
                       className="flex-1 px-3 py-2 border rounded-lg bg-background"
-                      placeholder={formData.provider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : formData.provider === 'gemini' ? 'gemini-1.5-pro' : formData.provider === 'cohere' ? 'command-r-plus' : formData.provider === 'mistral' ? 'mistral-large-latest' : formData.provider === 'mammut' ? 'llama-3.1-70b-instruct' : 'llama3:70b'}
+                      placeholder="Leave empty to select later"
                     />
                     {editingGateway && (
                       <button
@@ -390,6 +425,13 @@ export default function Gateways() {
                 )
               })()}
             </div>
+            <button
+              onClick={() => openTestChat(gw)}
+              className="mt-3 w-full px-3 py-2 border rounded-lg hover:bg-muted flex items-center justify-center gap-2 text-sm"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Test Chat
+            </button>
           </div>
         ))}
       </div>
@@ -405,6 +447,73 @@ export default function Gateways() {
           >
             Add Gateway
           </button>
+        </div>
+      )}
+
+      {testChatOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Test Chat
+              </h3>
+              <button
+                onClick={() => setTestChatOpen(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 border-b">
+              <label className="block text-sm font-medium mb-1">Model</label>
+              <select
+                value={selectedTestModel}
+                onChange={e => setSelectedTestModel(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg bg-background"
+              >
+                {testModels.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} {m.size && `(${m.size})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+              {testMessages.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  Send a message to test the gateway
+                </div>
+              )}
+              {testMessages.map((msg, i) => (
+                <div key={i} className={`p-3 rounded-lg ${
+                  msg.role === 'user' ? 'bg-primary text-primary-foreground ml-8' : 'bg-muted mr-8'
+                }`}>
+                  {msg.content}
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={testInput}
+                  onChange={e => setTestInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleTestChat(testChatOpen)}
+                  placeholder="Type a message..."
+                  disabled={chatLoading || !selectedTestModel}
+                  className="flex-1 px-3 py-2 border rounded-lg bg-background"
+                />
+                <button
+                  onClick={() => handleTestChat(testChatOpen)}
+                  disabled={chatLoading || !testInput.trim() || !selectedTestModel}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

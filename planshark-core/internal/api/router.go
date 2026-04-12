@@ -19,6 +19,7 @@ func NewRouter(h *handlers.Handler) *chi.Mux {
 	r.Get("/health", h.Health)
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/debug/gateways", h.DebugGateways)
 		r.Get("/stats", h.GetStats)
 
 		r.Get("/agents", h.ListAgents)
@@ -40,6 +41,8 @@ func NewRouter(h *handlers.Handler) *chi.Mux {
 		r.Delete("/tasks/{id}", h.DeleteTask)
 
 		r.Get("/gateways", h.ListGateways)
+		r.Get("/gateways/{id}/models", h.ListGatewayModels)
+		r.Post("/gateways/{id}/test", h.TestGateway)
 		r.Post("/gateways", h.CreateGateway)
 		r.Get("/gateways/{id}", h.GetGateway)
 		r.Put("/gateways/{id}", h.UpdateGateway)

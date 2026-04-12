@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,20 @@ func New(database *db.DB, agentMgr *agent.Manager, gwMgr *gateway.GatewayManager
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (h *Handler) DebugGateways(w http.ResponseWriter, r *http.Request) {
+	var result []map[string]interface{}
+	for _, g := range h.gw.ListGateways() {
+		result = append(result, map[string]interface{}{
+			"id":       g.Gateway.ID,
+			"name":     g.Gateway.Name,
+			"provider": g.Gateway.Provider,
+			"endpoint": g.Gateway.Endpoint,
+			"model":    g.Gateway.Model,
+		})
+	}
+	json.NewEncoder(w).Encode(result)
 }
 
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
@@ -414,22 +429,45 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("AGENT: Name=%s GatewayID=%v Model=%s", a.Name, a.GatewayID, a.Model)
+
 	if a.GatewayID == nil {
 		http.Error(w, "agent has no gateway configured", http.StatusBadRequest)
 		return
 	}
 
 	model := req.Model
+	log.Printf("1. model from request: %q", model)
 	if model == "" {
 		model = a.Model
+		log.Printf("2. model from agent: %q", model)
+	}
+	if model == "" {
+		gatewayID := *a.GatewayID
+		log.Printf("3. getting gateway %s", gatewayID)
+		gw, err := h.db.GetGateway(gatewayID)
+		if err != nil {
+			log.Printf("ERROR getting gateway: %v", err)
+		} else if gw == nil {
+			log.Printf("gateway is nil")
+		} else {
+			model = gw.Model
+			log.Printf("4. model from gateway: %q", model)
+		}
+	}
+	if model == "" {
+		http.Error(w, "no model specified", http.StatusBadRequest)
+		return
 	}
 
 	messages := []map[string]string{
 		{"role": "user", "content": req.Message},
 	}
 
-	result, err := h.gw.Chat(r.Context(), *a.GatewayID, model, messages)
+	gwID := *a.GatewayID
+	result, err := h.gw.Chat(r.Context(), gwID, model, messages)
 	if err != nil {
+		log.Printf("[DEBUG] Chat error: %v", err)
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -618,4 +656,53 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 		"object": "list",
 		"data":   models,
 	})
+}
+
+func (h *Handler) ListGatewayModels(w http.ResponseWriter, r *http.Request) {
+	gatewayID := chi.URLParam(r, "id")
+	gwID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		http.Error(w, "invalid gateway id", http.StatusBadRequest)
+		return
+	}
+
+	gateway, err := h.db.GetGateway(gwID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	discovered, err := h.gw.DiscoverModels(gateway)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"object": "list",
+		"data":   discovered,
+	})
+}
+
+func (h *Handler) TestGateway(w http.ResponseWriter, r *http.Request) {
+	gatewayID := chi.URLParam(r, "id")
+	gwID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		http.Error(w, "invalid gateway id", http.StatusBadRequest)
+		return
+	}
+
+	gateway, err := h.db.GetGateway(gwID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	result, err := h.gw.TestConnection(gateway)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
 }

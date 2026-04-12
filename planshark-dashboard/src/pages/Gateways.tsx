@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '@/stores/store'
-import { Plus, Trash2, Globe, Pencil, X } from 'lucide-react'
-import { Gateway } from '@/lib/api'
+import { Plus, Trash2, Globe, Pencil, Loader2, RefreshCw, Wifi } from 'lucide-react'
+import { Gateway, DiscoveredModel, ConnectionTestResult, gatewayApi } from '@/lib/api'
 
 export default function Gateways() {
   const { gateways, createGateway, updateGateway, deleteGateway } = useStore()
@@ -17,6 +17,33 @@ export default function Gateways() {
     timeout_sec: 60,
   })
   const [loading, setLoading] = useState(false)
+  const [discoveredModels, setDiscoveredModels] = useState<DiscoveredModel[]>([])
+  const [discovering, setDiscovering] = useState(false)
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  const handleTestConnection = async (gatewayId: string) => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const result = await gatewayApi.testConnection(gatewayId)
+      setTestResult(result)
+    } catch (e: any) {
+      setTestResult({ success: false, message: e.response?.data || 'Test failed' })
+    }
+    setTesting(false)
+  }
+
+  const handleDiscoverModels = async (gatewayId: string) => {
+    setDiscovering(true)
+    try {
+      const response = await gatewayApi.listModels(gatewayId)
+      setDiscoveredModels(response.data || [])
+    } catch {
+      setDiscoveredModels([])
+    }
+    setDiscovering(false)
+  }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -178,14 +205,42 @@ export default function Gateways() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Default Model</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.model}
-                  onChange={e => setFormData({ ...formData, model: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg bg-background"
-                  placeholder={formData.provider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : formData.provider === 'gemini' ? 'gemini-1.5-pro' : formData.provider === 'cohere' ? 'command-r-plus' : formData.provider === 'mistral' ? 'mistral-large-latest' : formData.provider === 'mammut' ? 'llama-3.1-70b-instruct' : 'llama3:70b'}
-                />
+                {discoveredModels.length > 0 ? (
+                  <select
+                    value={formData.model}
+                    onChange={e => setFormData({ ...formData, model: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg bg-background"
+                  >
+                    <option value="">Select model...</option>
+                    {discoveredModels.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.size && `(${m.size})`}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={formData.model}
+                      onChange={e => setFormData({ ...formData, model: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-lg bg-background"
+                      placeholder={formData.provider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : formData.provider === 'gemini' ? 'gemini-1.5-pro' : formData.provider === 'cohere' ? 'command-r-plus' : formData.provider === 'mistral' ? 'mistral-large-latest' : formData.provider === 'mammut' ? 'llama-3.1-70b-instruct' : 'llama3:70b'}
+                    />
+                    {editingGateway && (
+                      <button
+                        type="button"
+                        onClick={() => handleDiscoverModels(editingGateway.id)}
+                        disabled={discovering}
+                        className="px-3 py-2 border rounded-lg hover:bg-muted disabled:opacity-50"
+                        title="Discover available models"
+                      >
+                        {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Rate Limit (concurrent)</label>
@@ -240,7 +295,38 @@ export default function Gateways() {
               >
                 Cancel
               </button>
+              {editingGateway && (
+                <button
+                  type="button"
+                  onClick={() => handleTestConnection(editingGateway.id)}
+                  disabled={testing}
+                  className="px-4 py-2 border rounded-lg hover:bg-muted disabled:opacity-50 flex items-center gap-2"
+                >
+                  {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                  Test
+                </button>
+              )}
             </div>
+
+            {testResult && (
+              <div className={`mt-3 p-3 rounded-lg ${testResult.success ? 'bg-green-900/30 border border-green-700' : 'bg-red-900/30 border border-red-700'}`}>
+                <div className="flex items-center gap-2">
+                  {testResult.success ? (
+                    <Wifi className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Wifi className="w-4 h-4 text-red-500" />
+                  )}
+                  <span className={testResult.success ? 'text-green-400' : 'text-red-400'}>
+                    {testResult.message}
+                  </span>
+                </div>
+                {testResult.success && testResult.models !== undefined && (
+                  <div className="text-sm text-green-400/70 mt-1">
+                    {testResult.models} models available
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </div>
       )}

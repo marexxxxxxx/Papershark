@@ -101,12 +101,27 @@ export const agentApi = {
   getLogs: (id: string) => api.get<{ logs: string }>(`/agents/${id}/logs`).then(r => r.data),
 }
 
+export interface DiscoveredModel {
+  id: string
+  name: string
+  size?: string
+}
+
+export interface ConnectionTestResult {
+  success: boolean
+  message: string
+  models?: number
+  provider?: string
+}
+
 export const gatewayApi = {
   list: () => api.get<Gateway[]>('/gateways').then(r => r.data),
   get: (id: string) => api.get<Gateway>(`/gateways/${id}`).then(r => r.data),
   create: (data: CreateGatewayRequest) => api.post<Gateway>('/gateways', data).then(r => r.data),
   update: (id: string, data: CreateGatewayRequest) => api.put<Gateway>(`/gateways/${id}`, data).then(r => r.data),
   delete: (id: string) => api.delete(`/gateways/${id}`),
+  listModels: (id: string) => api.get<{ object: string; data: DiscoveredModel[] }>(`/gateways/${id}/models`).then(r => r.data),
+  testConnection: (id: string) => api.post<ConnectionTestResult>(`/gateways/${id}/test`).then(r => r.data),
 }
 
 export const chatApi = {

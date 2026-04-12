@@ -5,6 +5,7 @@ import json
 import asyncio
 import logging
 import httpx
+import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
@@ -21,6 +22,9 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://host:8080")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
 MODEL = os.environ.get("MODEL", "llama3")
 
+DEFAULT_CONTEXT_LIMIT = 8192
+TOKEN_WARNING_THRESHOLD = 0.7
+
 
 def load_config(filename: str) -> str:
     path = os.path.join(AGENT_DIR, filename)
@@ -35,6 +39,105 @@ def save_config(filename: str, content: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         f.write(content)
+
+
+def load_context() -> Optional[Dict]:
+    path = os.path.join(AGENT_DIR, "context.md")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as f:
+            content = f.read()
+        return {"content": content, "loaded_at": datetime.now().isoformat()}
+    except Exception as e:
+        logging.warning(f"Failed to load context: {e}")
+        return None
+
+
+def save_context(
+    summary: str,
+    todos: List[str],
+    recent_messages: List[Dict] = None,
+    reason: str = "checkpoint",
+) -> None:
+    lines = [
+        "# Context",
+        f"Last Update: {datetime.now().isoformat()}",
+        f"Reason: {reason}",
+        "",
+        "## Summary",
+        summary,
+        "",
+        "## TODOs",
+    ]
+    for todo in todos:
+        lines.append(f"- {todo}")
+
+    if recent_messages:
+        lines.append("")
+        lines.append("## Recent Messages")
+        for msg in recent_messages[-10:]:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            if len(content) > 200:
+                content = content[:200] + "..."
+            lines.append(f"**{role}**: {content}")
+
+    content = "\n".join(lines)
+    save_config("context.md", content)
+
+
+def estimate_tokens(text: str) -> int:
+    return len(text) // 4
+
+
+def count_message_tokens(messages: List[Dict], system_prompt: str) -> int:
+    total = estimate_tokens(system_prompt)
+    for msg in messages:
+        content = msg.get("content", "")
+        if content:
+            total += estimate_tokens(content)
+        tool_calls = msg.get("tool_calls", [])
+        for tc in tool_calls:
+            tc_content = json.dumps(tc)
+            total += estimate_tokens(tc_content)
+    return total
+
+
+async def detect_model_limit(llm: "LLMClient") -> int:
+    model = MODEL.lower()
+
+    known_limits = {
+        "gpt-3.5-turbo": 4096,
+        "gpt-4": 8192,
+        "gpt-4-32k": 32768,
+        "gpt-4-turbo": 128000,
+        "gpt-4o": 128000,
+        "llama2": 4096,
+        "llama3": 8192,
+        "llama3.1": 128000,
+        "llama3.2": 128000,
+        "mistral": 8192,
+    }
+
+    for known, limit in known_limits.items():
+        if known in model:
+            logging.info(f"Detected model limit: {limit} (via {known})")
+            return limit
+
+    test_prompt = "Count"
+    response = await llm.chat([{"role": "user", "content": test_prompt}])
+    usage = response.get("usage", {})
+    prompt_tokens = usage.get("prompt_tokens", 0)
+
+    if prompt_tokens > 0:
+        limit = DEFAULT_CONTEXT_LIMIT
+        logging.info(f"Could not detect model, using default limit: {limit}")
+        return limit
+
+    limit = DEFAULT_CONTEXT_LIMIT
+    logging.warning(f"Could not detect model limit, using default: {limit}")
+    return limit
 
 
 def update_heartbeat(status: str, message: str = "") -> None:
@@ -133,6 +236,10 @@ class AgentRuntime:
         self.llm = LLMClient(OPENAI_BASE_URL, OPENAI_API_KEY)
         self.tools = None
         self.running = True
+        self.context_limit = DEFAULT_CONTEXT_LIMIT
+        self.current_summary = "Agent started"
+        self.current_todos = []
+        self.messages_history = []
 
     def load_system_prompt(self) -> str:
         content = load_config("agent.md")
@@ -212,12 +319,24 @@ class AgentRuntime:
         system_prompt = self.load_system_prompt()
         tools_schema = self.load_tools()
 
+        saved_context = load_context()
+        if saved_context:
+            self.current_summary = saved_context.get("content", "")[:500]
+            logging.info("Loaded previous context")
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message},
         ]
 
         response = await self.llm.chat(messages, tools=tools_schema)
+
+        usage = response.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", 0)
+        completion_tokens = usage.get("completion_tokens", 0)
+        total_tokens = prompt_tokens + completion_tokens
+
+        self.messages_history.extend(messages)
 
         choice = response.get("choices", [{}])[0]
         assistant_message = choice.get("message", {})
@@ -254,11 +373,36 @@ class AgentRuntime:
                         "content": json.dumps(result),
                     }
                 )
+                self.messages_history.extend([messages[-2], messages[-1]])
 
             if tool_results:
                 final_response = await self.llm.chat(messages)
                 choice = final_response.get("choices", [{}])[0]
                 content = choice.get("message", {}).get("content", "")
+
+                final_usage = final_response.get("usage", {})
+                total_tokens += final_usage.get("completion_tokens", 0)
+                self.messages_history.extend(
+                    [
+                        {"role": "assistant", "content": content},
+                    ]
+                )
+
+        usage_info = f"Task {task_id}: {total_tokens} tokens"
+        if total_tokens >= self.context_limit * TOKEN_WARNING_THRESHOLD:
+            self.current_summary = (
+                f"Task '{task_id}' completed. Output: {content[:300]}..."
+            )
+            self.current_todos.append(f"Check context for task {task_id}")
+            save_context(
+                summary=self.current_summary,
+                todos=self.current_todos,
+                recent_messages=self.messages_history,
+                reason="70% token limit reached",
+            )
+            usage_info += " (context saved)"
+
+        update_heartbeat("running", usage_info)
 
         return {"content": content, "tool_results": tool_results}
 
@@ -294,7 +438,16 @@ class AgentRuntime:
         register_tool(FileTool(base_dir=AGENT_DIR))
         register_tool(HTTPTool(timeout=30))
 
-        update_heartbeat("running", f"Polling every {POLL_INTERVAL}s")
+        self.context_limit = await detect_model_limit(self.llm)
+        logging.info(f"Using context limit: {self.context_limit}")
+
+        saved_context = load_context()
+        if saved_context:
+            logging.info("Restored previous context on startup")
+
+        update_heartbeat(
+            "running", f"Polling every {POLL_INTERVAL}s, limit: {self.context_limit}"
+        )
 
         while self.running:
             tasks = await self.poll_tasks()
@@ -321,6 +474,15 @@ class AgentRuntime:
 
     async def shutdown(self):
         self.running = False
+        save_context(
+            summary=self.current_summary,
+            todos=self.current_todos,
+            recent_messages=self.messages_history[-20:]
+            if self.messages_history
+            else [],
+            reason="shutdown",
+        )
+        logging.info("Context saved on shutdown")
         await self.api.close()
         await self.llm.close()
 

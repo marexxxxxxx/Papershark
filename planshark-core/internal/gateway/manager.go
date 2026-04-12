@@ -122,13 +122,246 @@ func (gm *GatewayManager) ListGateways() []*ManagedGateway {
 	return result
 }
 
+type ConnectionTestResult struct {
+	Success  bool   `json:"success"`
+	Message  string `json:"message,omitempty"`
+	Models   int    `json:"models,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
+func (gm *GatewayManager) TestConnection(gateway *models.Gateway) (*ConnectionTestResult, error) {
+	result := &ConnectionTestResult{
+		Provider: string(gateway.Provider),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var testURL string
+	var err error
+
+	switch gateway.Provider {
+	case models.ProviderOllama:
+		testURL = gateway.Endpoint + "/api/tags"
+	case models.ProviderLlamaCpp:
+		testURL = gateway.Endpoint + "/tags"
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+		testURL = gateway.Endpoint + "/models"
+	case models.ProviderAnthropic:
+		testURL = gateway.Endpoint + "/v1/models"
+	case models.ProviderGemini:
+		testURL = gateway.Endpoint + "/v1beta/models"
+	case models.ProviderAzure:
+		testURL = gateway.Endpoint + "/openai/models"
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", gateway.Provider)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
+	if err != nil {
+		result.Message = err.Error()
+		return result, nil
+	}
+
+	if gateway.APIKey != "" {
+		switch gateway.Provider {
+		case models.ProviderAnthropic:
+			req.Header.Set("x-api-key", gateway.APIKey)
+			req.Header.Set("anthropic-version", "2023-06-01")
+		case models.ProviderGemini:
+			req.Header.Set("x-goog-api-key", gateway.APIKey)
+		case models.ProviderAzure:
+			req.Header.Set("api-key", gateway.APIKey)
+		default:
+			req.Header.Set("Authorization", "Bearer "+gateway.APIKey)
+		}
+	}
+
+	resp, err := gm.httpClient.Do(req)
+	if err != nil {
+		result.Message = fmt.Sprintf("connection failed: %v", err)
+		return result, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		result.Message = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		return result, nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		result.Message = fmt.Sprintf("read error: %v", err)
+		return result, nil
+	}
+
+	switch gateway.Provider {
+	case models.ProviderOllama:
+		var tags struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if json.Unmarshal(body, &tags) == nil {
+			result.Models = len(tags.Models)
+		}
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+		var resp struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if json.Unmarshal(body, &resp) == nil {
+			result.Models = len(resp.Data)
+		}
+	}
+
+	result.Success = true
+	result.Message = "connected"
+	return result, nil
+}
+
+type DiscoveredModel struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Size     string `json:"size,omitempty"`
+	Modified string `json:"modified,omitempty"`
+}
+
+func (gm *GatewayManager) DiscoverModels(gateway *models.Gateway) ([]DiscoveredModel, error) {
+	var discoveredModels []DiscoveredModel
+	var err error
+
+	switch gateway.Provider {
+	case models.ProviderOllama:
+		discoveredModels, err = gm.discoverOllamaModels(gateway.Endpoint)
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+		discoveredModels, err = gm.discoverOpenAIModels(gateway)
+	case models.ProviderAnthropic, models.ProviderGemini, models.ProviderAzure, models.ProviderLlamaCpp:
+		return nil, fmt.Errorf("model discovery not supported for %s", gateway.Provider)
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", gateway.Provider)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(discoveredModels) == 0 {
+		return []DiscoveredModel{{ID: gateway.Model, Name: gateway.Model}}, nil
+	}
+
+	return discoveredModels, nil
+}
+
+func (gm *GatewayManager) discoverOllamaModels(endpoint string) ([]DiscoveredModel, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint+"/api/tags", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := gm.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API error %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var ollamaTags struct {
+		Models []struct {
+			Name     string `json:"name"`
+			Size     int64  `json:"size"`
+			Modified string `json:"modified_at"`
+		} `json:"models"`
+	}
+
+	if err := json.Unmarshal(body, &ollamaTags); err != nil {
+		return nil, err
+	}
+
+	discovered := make([]DiscoveredModel, len(ollamaTags.Models))
+	for i, m := range ollamaTags.Models {
+		sizeGB := float64(m.Size) / (1024 * 1024 * 1024)
+		sizeStr := fmt.Sprintf("%.1fGB", sizeGB)
+		discovered[i] = DiscoveredModel{
+			ID:       m.Name,
+			Name:     m.Name,
+			Size:     sizeStr,
+			Modified: m.Modified,
+		}
+	}
+
+	return discovered, nil
+}
+
+func (gm *GatewayManager) discoverOpenAIModels(gateway *models.Gateway) ([]DiscoveredModel, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	endpoint := gateway.Endpoint + "/models"
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if gateway.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+gateway.APIKey)
+	}
+
+	resp, err := gm.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API error %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var openaiModels struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &openaiModels); err != nil {
+		return nil, err
+	}
+
+	result := make([]DiscoveredModel, len(openaiModels.Data))
+	for i, m := range openaiModels.Data {
+		result[i] = DiscoveredModel{
+			ID:   m.ID,
+			Name: m.ID,
+		}
+	}
+
+	return result, nil
+}
+
 func (gm *GatewayManager) Chat(ctx context.Context, gatewayID uuid.UUID, model string, messages []map[string]string) (*ChatResult, error) {
 	gm.mu.RLock()
 	mg, ok := gm.gateways[gatewayID]
 	gm.mu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("gateway not found")
+		return nil, fmt.Errorf("gateway %s not found in manager (registered: %d)", gatewayID, len(gm.gateways))
 	}
 
 	timeout := time.Duration(mg.Gateway.TimeoutSec) * time.Second
@@ -262,14 +495,17 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error %d body: %s", resp.StatusCode, string(body))
 	}
 
 	switch gateway.Provider {
 	case models.ProviderOllama:
 		var ollamaResp OllamaResponse
 		if err := json.Unmarshal(body, &ollamaResp); err != nil {
-			return nil, fmt.Errorf("failed to parse ollama response: %w", err)
+			return nil, fmt.Errorf("parse error: %w, body: %s", err, string(body))
+		}
+		if ollamaResp.Message.Content == "" {
+			return nil, fmt.Errorf("empty response, body: %s", string(body))
 		}
 		return &ChatResult{
 			Content:      ollamaResp.Message.Content,

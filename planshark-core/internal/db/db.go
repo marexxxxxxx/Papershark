@@ -65,6 +65,14 @@ func (db *DB) migrate() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS agent_skills (
+		agent_id TEXT REFERENCES agents(id) ON DELETE CASCADE,
+		skill_name TEXT NOT NULL,
+		is_enabled INTEGER DEFAULT 1,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (agent_id, skill_name)
+	);
+
 	CREATE TABLE IF NOT EXISTS agent_configs (
 		agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
 		heartbeat_md TEXT DEFAULT '',
@@ -482,5 +490,42 @@ func (db *DB) ClaimTasks(agentID uuid.UUID, limit int) ([]models.Task, error) {
 
 func (db *DB) DeleteTask(id uuid.UUID) error {
 	_, err := db.conn.Exec("DELETE FROM tasks WHERE id = ?", id.String())
+	return err
+}
+
+func (db *DB) GetAgentSkills(agentID uuid.UUID) ([]models.AgentSkill, error) {
+	rows, err := db.conn.Query(`
+		SELECT agent_id, skill_name, is_enabled, created_at
+		FROM agent_skills WHERE agent_id = ?
+	`, agentID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var skills []models.AgentSkill
+	for rows.Next() {
+		var s models.AgentSkill
+		var isEnabled int
+		if err := rows.Scan(&s.AgentID, &s.SkillName, &isEnabled, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		s.IsEnabled = isEnabled == 1
+		skills = append(skills, s)
+	}
+	return skills, nil
+}
+
+func (db *DB) SetAgentSkill(agentID uuid.UUID, skillName string, isEnabled bool) error {
+	enabledInt := 0
+	if isEnabled {
+		enabledInt = 1
+	}
+
+	_, err := db.conn.Exec(`
+		INSERT INTO agent_skills (agent_id, skill_name, is_enabled)
+		VALUES (?, ?, ?)
+		ON CONFLICT(agent_id, skill_name) DO UPDATE SET is_enabled = excluded.is_enabled
+	`, agentID.String(), skillName, enabledInt)
 	return err
 }

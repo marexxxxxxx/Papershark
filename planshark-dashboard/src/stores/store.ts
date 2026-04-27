@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { agentApi, gatewayApi, statsApi, chatApi, Agent, Gateway, Stats, AgentConfig } from '@/lib/api'
+import { agentApi, gatewayApi, statsApi, chatApi, skillApi, Agent, Gateway, Stats, AgentConfig, AgentSkill } from '@/lib/api'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -12,6 +12,7 @@ interface AppState {
   stats: Stats | null
   selectedAgent: Agent | null
   selectedAgentConfig: AgentConfig | null
+  selectedAgentSkills: AgentSkill[]
   loading: boolean
   error: string | null
   chatMessages: Record<string, ChatMessage[]>
@@ -31,6 +32,8 @@ interface AppState {
   deleteGateway: (id: string) => Promise<void>
   sendChatMessage: (agentId: string, message: string) => Promise<string>
   clearChat: (agentId: string) => Promise<void>
+  fetchAgentSkills: (agentId: string) => Promise<void>
+  toggleAgentSkill: (agentId: string, skillName: string, isEnabled: boolean) => Promise<void>
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -39,6 +42,7 @@ export const useStore = create<AppState>((set, get) => ({
   stats: null,
   selectedAgent: null,
   selectedAgentConfig: null,
+  selectedAgentSkills: [],
   loading: false,
   error: null,
   chatMessages: {},
@@ -174,5 +178,23 @@ export const useStore = create<AppState>((set, get) => ({
     const current = get().chatMessages
     delete current[agentId]
     set({ chatMessages: { ...current } })
+  },
+
+  fetchAgentSkills: async (agentId: string) => {
+    try {
+      const skills = await skillApi.list(agentId)
+      set({ selectedAgentSkills: skills })
+    } catch (e: any) {
+      set({ error: e.message })
+    }
+  },
+
+  toggleAgentSkill: async (agentId: string, skillName: string, isEnabled: boolean) => {
+    try {
+      await skillApi.set(agentId, skillName, isEnabled)
+      await get().fetchAgentSkills(agentId)
+    } catch (e: any) {
+      set({ error: e.message })
+    }
   },
 }))

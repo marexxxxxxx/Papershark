@@ -145,3 +145,16 @@ export const chatApi = {
 export const statsApi = {
   get: () => api.get<Stats>('/stats').then(r => r.data),
 }
+
+export interface AgentSkill {
+  agent_id: string
+  skill_name: string
+  is_enabled: boolean
+  created_at: string
+}
+
+export const skillApi = {
+  list: (agentId: string) => api.get<AgentSkill[]>(`/agents/${agentId}/skills`).then(r => r.data),
+  set: (agentId: string, skillName: string, isEnabled: boolean) =>
+    api.put(`/agents/${agentId}/skills/${skillName}`, { is_enabled: isEnabled }).then(r => r.data),
+}

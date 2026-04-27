@@ -12,7 +12,16 @@ export default function Agents() {
     name: '',
     gateway_id: '',
     model: '',
-    agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+    agent_md: `# OpenClaw Agent
+You are an autonomous AI assistant operating in a secure Linux Docker sandbox.
+You have access to tools that allow you to execute shell commands (bash), manage files, and interact with the internet.
+
+Your goal is to use these tools to solve coding tasks, analyze data, and fulfill the user's requests independently.
+When given a task, think step-by-step.
+1. Use the bash tool to explore your environment (\`ls\`, \`pwd\`, \`uname -a\`, etc.).
+2. Write or modify code using the file tools.
+3. Test your code by running it via the bash tool.
+4. Report back the final results to the user once the task is complete.`,
   })
   const [loading, setLoading] = useState(false)
 
@@ -26,7 +35,16 @@ export default function Agents() {
         name: '',
         gateway_id: '',
         model: '',
-        agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+        agent_md: `# OpenClaw Agent
+You are an autonomous AI assistant operating in a secure Linux Docker sandbox.
+You have access to tools that allow you to execute shell commands (bash), manage files, and interact with the internet.
+
+Your goal is to use these tools to solve coding tasks, analyze data, and fulfill the user's requests independently.
+When given a task, think step-by-step.
+1. Use the bash tool to explore your environment (\`ls\`, \`pwd\`, \`uname -a\`, etc.).
+2. Write or modify code using the file tools.
+3. Test your code by running it via the bash tool.
+4. Report back the final results to the user once the task is complete.`,
       })
     } catch (e) {
       console.error(e)
@@ -73,7 +91,16 @@ export default function Agents() {
         name: '',
         gateway_id: '',
         model: '',
-        agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+        agent_md: `# OpenClaw Agent
+You are an autonomous AI assistant operating in a secure Linux Docker sandbox.
+You have access to tools that allow you to execute shell commands (bash), manage files, and interact with the internet.
+
+Your goal is to use these tools to solve coding tasks, analyze data, and fulfill the user's requests independently.
+When given a task, think step-by-step.
+1. Use the bash tool to explore your environment (\`ls\`, \`pwd\`, \`uname -a\`, etc.).
+2. Write or modify code using the file tools.
+3. Test your code by running it via the bash tool.
+4. Report back the final results to the user once the task is complete.`,
       })
     } catch (e) {
       console.error(e)
@@ -88,7 +115,16 @@ export default function Agents() {
       name: '',
       gateway_id: '',
       model: '',
-      agent_md: '# My Agent\n\nYou are a helpful AI assistant.',
+      agent_md: `# OpenClaw Agent
+You are an autonomous AI assistant operating in a secure Linux Docker sandbox.
+You have access to tools that allow you to execute shell commands (bash), manage files, and interact with the internet.
+
+Your goal is to use these tools to solve coding tasks, analyze data, and fulfill the user's requests independently.
+When given a task, think step-by-step.
+1. Use the bash tool to explore your environment (\`ls\`, \`pwd\`, \`uname -a\`, etc.).
+2. Write or modify code using the file tools.
+3. Test your code by running it via the bash tool.
+4. Report back the final results to the user once the task is complete.`,
     })
   }
 

@@ -170,3 +170,14 @@ type ToolDefinition struct {
 	Description string `json:"description"`
 	Parameters  string `json:"parameters"`
 }
+
+type AgentSkill struct {
+	AgentID   uuid.UUID `json:"agent_id"`
+	SkillName string    `json:"skill_name"`
+	IsEnabled bool      `json:"is_enabled"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SetSkillRequest struct {
+	IsEnabled bool `json:"is_enabled"`
+}

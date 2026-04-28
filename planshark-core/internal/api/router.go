@@ -33,6 +33,9 @@ func NewRouter(h *handlers.Handler, allowedOrigins []string) *chi.Mux {
 		r.Put("/agents/{id}/config", h.UpdateAgentConfig)
 		r.Get("/agents/{id}/logs", h.GetAgentLogs)
 
+		r.Get("/agents/{id}/skills", h.GetAgentSkills)
+		r.Put("/agents/{id}/skills/{skillName}", h.SetAgentSkill)
+
 		r.Get("/agents/{id}/tasks", h.ListTasks)
 		r.Post("/agents/{id}/tasks", h.CreateTask)
 		r.Get("/agents/{id}/tasks/poll", h.PollTasks)

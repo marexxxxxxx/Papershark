@@ -432,11 +432,31 @@ class AgentRuntime:
         update_heartbeat("initializing", f"LLM: {OPENAI_BASE_URL}")
 
         from tools import BashTool, FileTool, HTTPTool
+        from tools.memory import MemoryTool
         from tools import register_tool
+        from tools.skill_loader import load_skills
+        import requests
 
         register_tool(BashTool(timeout=60))
         register_tool(FileTool(base_dir=AGENT_DIR))
         register_tool(HTTPTool(timeout=30))
+        register_tool(MemoryTool(base_dir=AGENT_DIR))
+
+        # Check enabled skills from backend
+        enabled_skills = None
+        try:
+            skills_resp = requests.get(f"{API_BASE_URL}/api/v1/agents/{AGENT_ID}/skills")
+            if skills_resp.status_code == 200:
+                skills_data = skills_resp.json()
+                enabled_skills = [s["skill_name"] for s in skills_data if s["is_enabled"]]
+                logging.info(f"Enabled skills from backend: {enabled_skills}")
+        except Exception as e:
+            logging.warning(f"Could not fetch agent skills: {e}")
+
+        # Load dynamic skills
+        skills_dir = os.path.join(AGENT_DIR, "skills")
+        os.makedirs(skills_dir, exist_ok=True)
+        load_skills(skills_dir, enabled_skills=enabled_skills, api_base_url=API_BASE_URL, agent_id=AGENT_ID)
 
         self.context_limit = await detect_model_limit(self.llm)
         logging.info(f"Using context limit: {self.context_limit}")

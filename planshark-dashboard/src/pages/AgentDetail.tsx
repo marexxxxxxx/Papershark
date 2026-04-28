@@ -6,8 +6,8 @@ import { agentApi } from '@/lib/api'
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>()
-  const { selectedAgent, selectedAgentConfig, selectAgent, updateAgentConfig, startAgent, stopAgent, chatMessages, sendChatMessage, clearChat } = useStore()
-  const [activeTab, setActiveTab] = useState<'agent' | 'tool' | 'heartbeat' | 'chat' | 'logs'>('agent')
+  const { selectedAgent, selectedAgentConfig, selectedAgentSkills, fetchAgentSkills, toggleAgentSkill, selectAgent, updateAgentConfig, startAgent, stopAgent, chatMessages, sendChatMessage, clearChat } = useStore()
+  const [activeTab, setActiveTab] = useState<'agent' | 'tool' | 'heartbeat' | 'chat' | 'logs' | 'skills'>('agent')
   const [logs, setLogs] = useState('')
   const [loading, setLoading] = useState(false)
   const [chatInput, setChatInput] = useState('')
@@ -21,6 +21,7 @@ export default function AgentDetail() {
   useEffect(() => {
     if (id) {
       selectAgent(id)
+      fetchAgentSkills(id)
     }
   }, [id])
 
@@ -132,13 +133,13 @@ export default function AgentDetail() {
 
       <div className="border rounded-lg">
         <div className="flex border-b">
-          {(['agent', 'tool', 'heartbeat', 'chat', 'logs'] as const).map(tab => (
+          {(['agent', 'tool', 'heartbeat', 'skills', 'chat', 'logs'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 capitalize ${activeTab === tab ? 'bg-muted font-medium' : ''}`}
             >
-              {tab === 'agent' ? 'agent.md' : tab === 'tool' ? 'tool.md' : tab === 'heartbeat' ? 'heartbeat.md' : tab === 'chat' ? 'Chat' : 'Logs'}
+              {tab === 'agent' ? 'agent.md' : tab === 'tool' ? 'tool.md' : tab === 'heartbeat' ? 'heartbeat.md' : tab === 'chat' ? 'Chat' : tab === 'skills' ? 'Skills' : 'Logs'}
             </button>
           ))}
         </div>
@@ -183,6 +184,40 @@ export default function AgentDetail() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </form>
+            </div>
+          ) : activeTab === 'skills' ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">Installed Skills</h3>
+                <p className="text-sm text-muted-foreground">Manage dynamic OpenClaw-compatible skills from the container's skills directory.</p>
+              </div>
+              <div className="border rounded-lg bg-card p-4">
+                {selectedAgentSkills.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-4">No skills installed. Drop Python files into the agent's <code>skills/</code> directory.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {selectedAgentSkills.map(skill => (
+                      <li key={skill.skill_name} className="py-3 flex items-center justify-between">
+                        <span className="font-medium">{skill.skill_name}</span>
+                        <label className="flex items-center cursor-pointer">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={skill.is_enabled}
+                              onChange={(e) => {
+                                if (id) toggleAgentSkill(id, skill.skill_name, e.target.checked)
+                              }}
+                            />
+                            <div className={`block w-10 h-6 rounded-full transition-colors ${skill.is_enabled ? 'bg-primary' : 'bg-muted'}`}></div>
+                            <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${skill.is_enabled ? 'transform translate-x-4' : ''}`}></div>
+                          </div>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           ) : activeTab === 'logs' ? (
             <div className="space-y-2">

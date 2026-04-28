@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"planshark-core/internal/agent"
 	"planshark-core/internal/api"
@@ -18,7 +19,10 @@ import (
 func main() {
 	dataDir := flag.String("data", "./data", "data directory")
 	addr := flag.String("addr", ":8080", "server address")
+	allowedOriginsFlag := flag.String("allowed-origins", "http://localhost:3000", "comma-separated list of allowed origins for CORS")
 	flag.Parse()
+
+	allowedOrigins := strings.Split(*allowedOriginsFlag, ",")
 
 	dbPath := fmt.Sprintf("%s/planshark.db", *dataDir)
 	dockerBaseDir := fmt.Sprintf("%s/docker", *dataDir)
@@ -58,7 +62,7 @@ func main() {
 	agentManager := agent.NewManager(database, dockerClient)
 
 	h := handlers.New(database, agentManager, gwManager)
-	router := api.NewRouter(h)
+	router := api.NewRouter(h, allowedOrigins)
 
 	log.Printf("Planshark starting on %s", *addr)
 	log.Printf("Data directory: %s", *dataDir)

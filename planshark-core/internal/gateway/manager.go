@@ -145,7 +145,7 @@ func (gm *GatewayManager) TestConnection(gateway *models.Gateway) (*ConnectionTe
 		testURL = gateway.Endpoint + "/api/tags"
 	case models.ProviderLlamaCpp:
 		testURL = gateway.Endpoint + "/tags"
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderOpenRouter:
 		testURL = gateway.Endpoint + "/models"
 	case models.ProviderAnthropic:
 		testURL = gateway.Endpoint + "/v1/models"
@@ -205,7 +205,7 @@ func (gm *GatewayManager) TestConnection(gateway *models.Gateway) (*ConnectionTe
 		if json.Unmarshal(body, &tags) == nil {
 			result.Models = len(tags.Models)
 		}
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderOpenRouter:
 		var resp struct {
 			Data []struct {
 				ID string `json:"id"`
@@ -235,7 +235,7 @@ func (gm *GatewayManager) DiscoverModels(gateway *models.Gateway) ([]DiscoveredM
 	switch gateway.Provider {
 	case models.ProviderOllama:
 		discoveredModels, err = gm.discoverOllamaModels(gateway.Endpoint)
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderOpenRouter:
 		discoveredModels, err = gm.discoverOpenAIModels(gateway)
 	case models.ProviderAnthropic, models.ProviderGemini, models.ProviderAzure, models.ProviderLlamaCpp:
 		return nil, fmt.Errorf("model discovery not supported for %s", gateway.Provider)
@@ -400,7 +400,7 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 			Stream: false,
 		}
 		reqBodyBytes, err = json.Marshal(reqBody)
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderOpenRouter:
 		reqBody = OpenAIRequest{
 			Model:    model,
 			Messages: messages,
@@ -453,7 +453,7 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 		endpoint += "/api/chat"
 	case models.ProviderLlamaCpp:
 		endpoint += "/completion"
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderOpenRouter:
 		endpoint += "/chat/completions"
 	case models.ProviderAnthropic:
 		endpoint += "/v1/messages"
@@ -524,7 +524,7 @@ func (gm *GatewayManager) doChat(ctx context.Context, gateway *models.Gateway, m
 			OutputTokens: llamaResp.TokenCount,
 		}, nil
 
-	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderAzure:
+	case models.ProviderOpenAI, models.ProviderMistral, models.ProviderCohere, models.ProviderOllamaCloud, models.ProviderMammut, models.ProviderAzure, models.ProviderOpenRouter:
 		var openaiResp OpenAIResponse
 		if err := json.Unmarshal(body, &openaiResp); err != nil {
 			return nil, fmt.Errorf("failed to parse openai response: %w", err)

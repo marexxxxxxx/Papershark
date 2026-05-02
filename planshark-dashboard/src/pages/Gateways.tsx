@@ -9,7 +9,7 @@ export default function Gateways() {
   const [editingGateway, setEditingGateway] = useState<Gateway | null>(null)
   const [formData, setFormData] = useState({
     name: '',
-    provider: 'ollama' as 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut',
+    provider: 'ollama' as 'ollama' | 'llamacpp' | 'openai' | 'anthropic' | 'gemini' | 'cohere' | 'mistral' | 'azure' | 'ollama_cloud' | 'mammut' | 'openrouter',
     endpoint: '',
     api_key: '',
     model: '',
@@ -169,6 +169,7 @@ export default function Gateways() {
       mistral: 'bg-indigo-500',
       azure: 'bg-cyan-500',
       mammut: 'bg-red-500',
+      openrouter: 'bg-indigo-600',
     }
     return colors[provider] || 'bg-gray-500'
   }
@@ -222,6 +223,7 @@ export default function Gateways() {
                   <option value="mistral">Mistral</option>
                   <option value="azure">Azure OpenAI</option>
                   <option value="mammut">Mammut.ai</option>
+                  <option value="openrouter">OpenRouter</option>
                 </select>
               </div>
             </div>
@@ -234,7 +236,7 @@ export default function Gateways() {
                 value={formData.endpoint}
                 onChange={e => setFormData({ ...formData, endpoint: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg bg-background"
-                placeholder={formData.provider === 'ollama' ? 'http://localhost:11434' : formData.provider === 'ollama_cloud' ? 'https://cloud.ollama.ai' : formData.provider === 'anthropic' ? 'https://api.anthropic.com' : formData.provider === 'gemini' ? 'https://generativelanguage.googleapis.com' : formData.provider === 'mammut' ? 'https://api.mammut.ai/v1' : 'https://api.openai.com/v1'}
+                placeholder={formData.provider === 'ollama' ? 'http://localhost:11434' : formData.provider === 'ollama_cloud' ? 'https://cloud.ollama.ai' : formData.provider === 'anthropic' ? 'https://api.anthropic.com' : formData.provider === 'gemini' ? 'https://generativelanguage.googleapis.com' : formData.provider === 'mammut' ? 'https://api.mammut.ai/v1' : formData.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'}
               />
             </div>
 

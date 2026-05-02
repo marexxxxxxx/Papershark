@@ -325,8 +325,8 @@ func (h *Handler) CreateGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" || req.Endpoint == "" || req.Model == "" {
-		http.Error(w, "name, endpoint and model are required", http.StatusBadRequest)
+	if req.Name == "" || req.Endpoint == "" {
+		http.Error(w, "name and endpoint are required", http.StatusBadRequest)
 		return
 	}
 

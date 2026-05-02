@@ -99,6 +99,12 @@ func (c *Client) doRequest(method, path string, body interface{}) ([]byte, error
 	}
 
 	if resp.StatusCode >= 400 {
+		var errResp map[string]interface{}
+		if err := json.Unmarshal(data, &errResp); err == nil {
+			if msg, ok := errResp["message"].(string); ok {
+				return data, fmt.Errorf("docker API error: %s", msg)
+			}
+		}
 		return data, fmt.Errorf("docker API error: %d %s", resp.StatusCode, string(data))
 	}
 

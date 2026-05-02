@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,6 +103,10 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) error {
 	if agent.ContainerID == "" {
 		containerID, err := m.docker.CreateAgentContainer(ctx, agent.ID, agent.Name, gatewayEndpoint)
 		if err != nil {
+			errStr := err.Error()
+			if strings.Contains(errStr, "No such image") {
+				return fmt.Errorf("Docker image 'planshark-agent:latest' not found. Please build it first: %w", err)
+			}
 			return fmt.Errorf("failed to create container: %w", err)
 		}
 		agent.ContainerID = containerID

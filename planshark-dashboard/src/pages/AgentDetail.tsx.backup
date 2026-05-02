@@ -22,14 +22,11 @@ export default function AgentDetail() {
   } = useStore()
 
   const [activeTab, setActiveTab] = useState<'config' | 'chat'>('config')
-  const [configTab, setConfigTab] = useState<'agent' | 'tool' | 'heartbeat'>('agent')
   const [chatInput, setChatInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState('')
 
   const [configForm, setConfigForm] = useState({
-    name: '',
-    gateway_id: '',
     agent_md: '',
     tool_md: '',
     heartbeat_md: '',
@@ -55,8 +52,6 @@ export default function AgentDetail() {
   useEffect(() => {
     if (selectedAgentConfig && selectedAgent) {
       setConfigForm({
-        name: selectedAgent.name,
-        gateway_id: selectedAgent.gateway_id || '',
         agent_md: selectedAgentConfig.agent_md,
         tool_md: selectedAgentConfig.tool_md,
         heartbeat_md: selectedAgentConfig.heartbeat_md,
@@ -94,11 +89,7 @@ export default function AgentDetail() {
         tool_md: configForm.tool_md,
         heartbeat_md: configForm.heartbeat_md
       })
-      await updateAgent(id, {
-        name: configForm.name,
-        gateway_id: configForm.gateway_id || undefined,
-        model: configForm.model
-      })
+      await updateAgent(id, { model: configForm.model })
       // Toast would be nice here
     } catch (e) {
       console.error(e)
@@ -167,58 +158,32 @@ export default function AgentDetail() {
           </button>
         </div>
 
-        {/* Basic Configuration */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Name</label>
-            <input
-              type="text"
-              required
-              value={configForm.name}
-              onChange={e => setConfigForm({ ...configForm, name: e.target.value })}
-              className="w-full bg-surface border border-outline-variant rounded p-2 text-on-surface focus:outline-none focus:border-primary font-body-sm text-body-sm"
-            />
-          </div>
-          <div>
-            <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Foundation Model</label>
+        {/* Model Configuration */}
+        <div className="flex flex-col gap-sm shrink-0">
+          <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Foundation Model</label>
+          <div className="flex gap-md">
             <input
               type="text"
               value={configForm.model}
               onChange={e => setConfigForm({ ...configForm, model: e.target.value })}
-              className="w-full bg-surface border border-outline-variant rounded p-2 text-on-surface focus:outline-none focus:border-primary font-body-sm text-body-sm"
-              placeholder={selectedAgent.gateway?.model || "Enter model name"}
+              className="flex-1 bg-surface border border-outline-variant rounded p-2 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 font-body-sm text-body-sm"
+              placeholder={selectedAgent.gateway?.model || "Enter model name (e.g. gpt-4)"}
             />
+            {/* Keeping the temperature slider as visual mockup as requested in HTML */}
+            <div className="flex-1 flex flex-col justify-center gap-xs">
+              <div className="flex justify-between items-center">
+                <span className="font-label-caps text-label-caps text-outline">Temperature (Simulated)</span>
+                <span className="font-code-mono text-code-mono text-primary">0.7</span>
+              </div>
+              <input type="range" min="0" max="1" step="0.1" defaultValue="0.7" className="w-full accent-primary h-1 bg-surface-variant rounded-lg appearance-none cursor-not-allowed opacity-50" disabled />
+            </div>
           </div>
         </div>
 
         {/* Personality / System Prompt */}
         <div className="flex flex-col gap-sm flex-1 min-h-[300px]">
           <div className="flex justify-between items-center">
-            <div className="flex gap-4 items-center">
-              <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Instructions & Scripts</label>
-              {activeTab === 'config' && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setConfigTab('agent')}
-                    className={`font-label-caps text-[10px] px-2 py-1 rounded ${configTab === 'agent' ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface'}`}
-                  >
-                    agent.md
-                  </button>
-                  <button
-                    onClick={() => setConfigTab('tool')}
-                    className={`font-label-caps text-[10px] px-2 py-1 rounded ${configTab === 'tool' ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface'}`}
-                  >
-                    tool.md
-                  </button>
-                  <button
-                    onClick={() => setConfigTab('heartbeat')}
-                    className={`font-label-caps text-[10px] px-2 py-1 rounded ${configTab === 'heartbeat' ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface'}`}
-                  >
-                    heartbeat.md
-                  </button>
-                </div>
-              )}
-            </div>
+            <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Personality & Instructions</label>
             <span className="font-label-caps text-label-caps text-outline flex items-center gap-1 cursor-pointer hover:text-on-surface" onClick={() => setActiveTab(activeTab === 'config' ? 'chat' : 'config')}>
               <span className="material-symbols-outlined text-[14px]">{activeTab === 'config' ? 'visibility' : 'edit'}</span>
               Toggle View
@@ -227,20 +192,11 @@ export default function AgentDetail() {
 
           {activeTab === 'config' ? (
             <textarea
-              value={
-                configTab === 'agent' ? configForm.agent_md :
-                configTab === 'tool' ? configForm.tool_md :
-                configForm.heartbeat_md
-              }
-              onChange={e => setConfigForm({
-                ...configForm,
-                ...(configTab === 'agent' ? { agent_md: e.target.value } : {}),
-                ...(configTab === 'tool' ? { tool_md: e.target.value } : {}),
-                ...(configTab === 'heartbeat' ? { heartbeat_md: e.target.value } : {})
-              })}
+              value={configForm.agent_md}
+              onChange={e => setConfigForm({ ...configForm, agent_md: e.target.value })}
               className="flex-1 bg-surface border border-outline-variant rounded p-md font-code-mono text-code-mono text-on-surface resize-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 leading-relaxed"
               spellCheck="false"
-              placeholder={`Enter ${configTab}.md content...`}
+              placeholder="You are an autonomous AI assistant..."
             />
           ) : (
             <div className="flex-1 bg-[#081425] border border-outline-variant rounded p-md font-code-mono text-[11px] text-green-400 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">

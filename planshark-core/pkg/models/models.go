@@ -19,6 +19,7 @@ const (
 	ProviderAzure       ProviderType = "azure"
 	ProviderOllamaCloud ProviderType = "ollama_cloud"
 	ProviderMammut      ProviderType = "mammut"
+	ProviderOpenRouter  ProviderType = "openrouter"
 )
 
 type AgentStatus string

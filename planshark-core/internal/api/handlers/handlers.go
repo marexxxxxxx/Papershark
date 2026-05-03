@@ -81,6 +81,33 @@ func (h *Handler) GetAgent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(a)
 }
 
+func (h *Handler) CreateOpenClawAgent(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateOpenClawRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.GatewayID == uuid.Nil {
+		http.Error(w, "gateway_id is required", http.StatusBadRequest)
+		return
+	}
+
+	created, err := h.ag.CreateOpenClaw(r.Context(), &req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(created)
+}
+
 func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	var rawReq map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&rawReq); err != nil {

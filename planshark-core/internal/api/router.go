@@ -24,6 +24,7 @@ func NewRouter(h *handlers.Handler, allowedOrigins []string) *chi.Mux {
 
 		r.Get("/agents", h.ListAgents)
 		r.Post("/agents", h.CreateAgent)
+		r.Post("/agents/openclaw", h.CreateOpenClawAgent)
 		r.Get("/agents/{id}", h.GetAgent)
 		r.Put("/agents/{id}", h.UpdateAgent)
 		r.Delete("/agents/{id}", h.DeleteAgent)

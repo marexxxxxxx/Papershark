@@ -10,6 +10,14 @@ A lightweight, open-source tool for creating and managing AI agents in Docker sa
 - **Real-time Monitoring**: Track agent status, token usage, and container logs
 - **Config Management**: Edit agent.md, tool.md, and heartbeat.md directly from the dashboard
 
+## Demo
+
+Schauen Sie sich das Video an, um einen ersten Eindruck der Benutzeroberfläche und Funktionen von Planshark zu erhalten.
+
+<video src="./demo.webm" width="100%" controls autoplay loop></video>
+
+---
+
 ## Quick Start
 
 ### Prerequisites

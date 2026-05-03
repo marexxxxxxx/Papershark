@@ -29,8 +29,14 @@ TOKEN_WARNING_THRESHOLD = 0.7
 def load_config(filename: str) -> str:
     path = os.path.join(AGENT_DIR, filename)
     if os.path.exists(path):
-        with open(path, "r") as f:
-            return f.read()
+        try:
+            with open(path, "r") as f:
+                return f.read()
+        except Exception as e:
+            logging.error(f"Error reading {filename}: {e}")
+            return ""
+    else:
+        logging.warning(f"Config file not found: {path}")
     return ""
 
 
@@ -245,6 +251,7 @@ class AgentRuntime:
         content = load_config("agent.md")
         if content:
             return content
+        logging.warning("Could not load agent.md, using default system prompt.")
         return "You are a helpful AI agent."
 
     def load_tools(self) -> List[Dict]:
@@ -324,19 +331,37 @@ class AgentRuntime:
             self.current_summary = saved_context.get("content", "")[:500]
             logging.info("Loaded previous context")
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message},
-        ]
+        # Build tool description string to inject into system prompt
+        tool_descriptions = ""
+        if tools_schema:
+            tool_descriptions = "\n\nAvailable Tools:\n"
+            for t in tools_schema:
+                if "function" in t:
+                    func = t["function"]
+                    tool_descriptions += f"- {func.get('name', 'unknown')}: {func.get('description', '')}\n"
 
-        response = await self.llm.chat(messages, tools=tools_schema)
+        full_system_prompt = system_prompt + tool_descriptions
+
+        # Manage messages history
+        # Ensure the first message is always the up-to-date system prompt
+        if not self.messages_history:
+            self.messages_history.append({"role": "system", "content": full_system_prompt})
+        else:
+            if self.messages_history[0].get("role") == "system":
+                self.messages_history[0]["content"] = full_system_prompt
+            else:
+                self.messages_history.insert(0, {"role": "system", "content": full_system_prompt})
+
+        # Append the new user message
+        self.messages_history.append({"role": "user", "content": message})
+
+        # We pass the entire history to the LLM
+        response = await self.llm.chat(self.messages_history, tools=tools_schema)
 
         usage = response.get("usage", {})
         prompt_tokens = usage.get("prompt_tokens", 0)
         completion_tokens = usage.get("completion_tokens", 0)
         total_tokens = prompt_tokens + completion_tokens
-
-        self.messages_history.extend(messages)
 
         choice = response.get("choices", [{}])[0]
         assistant_message = choice.get("message", {})
@@ -363,30 +388,31 @@ class AgentRuntime:
                     }
                 )
 
-                messages.append(
+                self.messages_history.append(
                     {"role": "assistant", "content": None, "tool_calls": [tc]}
                 )
-                messages.append(
+                self.messages_history.append(
                     {
                         "role": "tool",
                         "tool_call_id": tc.get("id", ""),
                         "content": json.dumps(result),
                     }
                 )
-                self.messages_history.extend([messages[-2], messages[-1]])
 
             if tool_results:
-                final_response = await self.llm.chat(messages)
+                final_response = await self.llm.chat(self.messages_history)
                 choice = final_response.get("choices", [{}])[0]
                 content = choice.get("message", {}).get("content", "")
 
                 final_usage = final_response.get("usage", {})
                 total_tokens += final_usage.get("completion_tokens", 0)
-                self.messages_history.extend(
-                    [
-                        {"role": "assistant", "content": content},
-                    ]
-                )
+
+        # Save the assistant's final response to history
+        if not tool_calls:
+            self.messages_history.append({"role": "assistant", "content": content})
+        else:
+            if content:
+                self.messages_history.append({"role": "assistant", "content": content})
 
         usage_info = f"Task {task_id}: {total_tokens} tokens"
         if total_tokens >= self.context_limit * TOKEN_WARNING_THRESHOLD:

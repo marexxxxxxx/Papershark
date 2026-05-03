@@ -323,40 +323,18 @@ class AgentRuntime:
 
         message = task_input.get("message", "")
 
-        system_prompt = self.load_system_prompt()
-        tools_schema = self.load_tools()
 
         saved_context = load_context()
         if saved_context:
             self.current_summary = saved_context.get("content", "")[:500]
             logging.info("Loaded previous context")
 
-        # Build tool description string to inject into system prompt
-        tool_descriptions = ""
-        if tools_schema:
-            tool_descriptions = "\n\nAvailable Tools:\n"
-            for t in tools_schema:
-                if "function" in t:
-                    func = t["function"]
-                    tool_descriptions += f"- {func.get('name', 'unknown')}: {func.get('description', '')}\n"
-
-        full_system_prompt = system_prompt + tool_descriptions
-
-        # Manage messages history
-        # Ensure the first message is always the up-to-date system prompt
-        if not self.messages_history:
-            self.messages_history.append({"role": "system", "content": full_system_prompt})
-        else:
-            if self.messages_history[0].get("role") == "system":
-                self.messages_history[0]["content"] = full_system_prompt
-            else:
-                self.messages_history.insert(0, {"role": "system", "content": full_system_prompt})
 
         # Append the new user message
         self.messages_history.append({"role": "user", "content": message})
 
         # We pass the entire history to the LLM
-        response = await self.llm.chat(self.messages_history, tools=tools_schema)
+        response = await self.llm.chat(self.messages_history, tools=self.tools)
 
         usage = response.get("usage", {})
         prompt_tokens = usage.get("prompt_tokens", 0)
@@ -468,6 +446,7 @@ class AgentRuntime:
         register_tool(HTTPTool(timeout=30))
         register_tool(MemoryTool(base_dir=AGENT_DIR))
 
+
         # Check enabled skills from backend
         enabled_skills = None
         try:
@@ -483,6 +462,29 @@ class AgentRuntime:
         skills_dir = os.path.join(AGENT_DIR, "skills")
         os.makedirs(skills_dir, exist_ok=True)
         load_skills(skills_dir, enabled_skills=enabled_skills, api_base_url=API_BASE_URL, agent_id=AGENT_ID)
+
+        self.tools = self.load_tools()
+        system_prompt = self.load_system_prompt()
+
+        tool_descriptions = ""
+        if self.tools:
+            tool_descriptions = "\n\nAvailable Tools:\n"
+            for t in self.tools:
+                if "function" in t:
+                    func = t["function"]
+                    tool_descriptions += f"- {func.get('name', 'unknown')}: {func.get('description', '')}\n"
+
+        full_system_prompt = "Die folgenden Systemanweisungen und Tool-Beschreibungen wurden aus der Datei 'agent.md' geladen:\n\n" + system_prompt + tool_descriptions
+
+        if not self.messages_history:
+            self.messages_history.append({"role": "system", "content": full_system_prompt})
+            print("Successfully loaded agent.md and tools into system prompt history.")
+            logging.info("Successfully loaded agent.md and tools into system prompt history.")
+        else:
+            if self.messages_history[0].get("role") == "system":
+                self.messages_history[0]["content"] = full_system_prompt
+            else:
+                self.messages_history.insert(0, {"role": "system", "content": full_system_prompt})
 
         self.context_limit = await detect_model_limit(self.llm)
         logging.info(f"Using context limit: {self.context_limit}")

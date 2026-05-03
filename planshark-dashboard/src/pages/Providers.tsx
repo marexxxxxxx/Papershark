@@ -205,7 +205,14 @@ export default function Providers() {
                   <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Provider Type</label>
                   <select
                     value={formData.provider}
-                    onChange={e => setFormData({ ...formData, provider: e.target.value as Gateway['provider'] })}
+                    onChange={e => {
+                      const newProvider = e.target.value as Gateway['provider'];
+                      if (newProvider === 'openrouter') {
+                        setFormData({ ...formData, provider: newProvider, endpoint: 'https://openrouter.ai/api/v1' });
+                      } else {
+                        setFormData({ ...formData, provider: newProvider });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-outline-variant rounded bg-surface text-on-surface focus:outline-none focus:border-primary"
                   >
                     <option value="ollama">Ollama (Local)</option>
@@ -218,6 +225,7 @@ export default function Providers() {
                     <option value="mistral">Mistral AI</option>
                     <option value="azure">Azure OpenAI</option>
                     <option value="mammut">Mammut</option>
+                    <option value="openrouter">OpenRouter</option>
                   </select>
                 </div>
               </div>

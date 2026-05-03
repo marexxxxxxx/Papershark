@@ -182,3 +182,9 @@ type AgentSkill struct {
 type SetSkillRequest struct {
 	IsEnabled bool `json:"is_enabled"`
 }
+
+type CreateOpenClawRequest struct {
+	Name      string    `json:"name"`
+	GatewayID uuid.UUID `json:"gateway_id"`
+	Model     string    `json:"model"`
+}

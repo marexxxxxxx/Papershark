@@ -10,7 +10,7 @@ frontend:
 
 dev:
 	cd planshark-core && go run ./cmd/server &
-	cd planshark-dashboard && npm run dev
+	cd planshark-dashboard && npm run dev --host
 
 test:
 	cd planshark-core && go test ./...

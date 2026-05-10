@@ -77,6 +77,56 @@ func (m *Manager) Create(ctx context.Context, req *models.CreateAgentRequest) (*
 	return agent, nil
 }
 
+func (m *Manager) CreateOpenClaw(ctx context.Context, req *models.CreateOpenClawRequest) (*models.Agent, error) {
+	agent := &models.Agent{
+		Name:      req.Name,
+		Model:     req.Model,
+		Status:    models.StatusStopped,
+		GatewayID: &req.GatewayID,
+	}
+
+	if err := m.db.CreateAgent(agent); err != nil {
+		return nil, fmt.Errorf("failed to create openclaw agent in db: %w", err)
+	}
+
+	config := &models.AgentConfig{
+		AgentID:   agent.ID,
+		Heartbeat: fmt.Sprintf("# OpenClaw Heartbeat\n\nStatus: initialized\nLast Update: %s", time.Now().Format(time.RFC3339)),
+		AgentMD:   "# " + agent.Name + "\n\nOpenClaw agent initialized.",
+		ToolMD:    "# Available Tools\n\nOpenClaw tools available.",
+	}
+
+	if err := m.db.CreateAgentConfig(config); err != nil {
+		m.db.DeleteAgent(agent.ID)
+		return nil, fmt.Errorf("failed to create openclaw agent config: %w", err)
+	}
+
+	agent.GatewayID = &req.GatewayID
+
+	var gatewayEndpoint, apiKey string
+	if req.GatewayID != uuid.Nil {
+		gw, err := m.db.GetGateway(req.GatewayID)
+		if err == nil && gw != nil {
+			gatewayEndpoint = gw.Endpoint
+			apiKey = gw.APIKey
+		}
+	}
+
+	containerID, err := m.docker.CreateOpenClawContainer(ctx, agent.ID, agent.Name, gatewayEndpoint, apiKey, req.Model)
+	if err != nil {
+		m.db.DeleteAgent(agent.ID)
+		return nil, fmt.Errorf("failed to create openclaw container: %w", err)
+	}
+
+	agent.ContainerID = containerID
+	if err := m.db.UpdateAgentContainer(agent.ID, containerID); err != nil {
+		m.docker.RemoveContainer(ctx, containerID, true)
+		return nil, fmt.Errorf("failed to update openclaw container id: %w", err)
+	}
+
+	return agent, nil
+}
+
 func (m *Manager) Get(id uuid.UUID) (*models.Agent, error) {
 	return m.db.GetAgentWithGateway(id)
 }

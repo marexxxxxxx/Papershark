@@ -181,6 +181,73 @@ func (c *Client) CreateAgentContainer(ctx context.Context, agentID uuid.UUID, na
 	return id[:12], nil
 }
 
+func (c *Client) CreateOpenClawContainer(ctx context.Context, agentID uuid.UUID, name string, gatewayEndpoint string, apiKey string, model string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	agentDir, err := c.EnsureAgentDir(agentID)
+	if err != nil {
+		return "", err
+	}
+
+	containerName := fmt.Sprintf("openclaw-%s", name)
+
+	networkMode := "bridge"
+	envVars := []string{
+		"OPENAI_MODEL=" + model,
+	}
+	if gatewayEndpoint != "" {
+		envVars = append(envVars, "OPENAI_BASE_URL="+gatewayEndpoint)
+	}
+	if apiKey != "" {
+		envVars = append(envVars, "OPENAI_API_KEY="+apiKey)
+	}
+
+	body := map[string]interface{}{
+		"Image": "openclaw:latest",
+		"HostConfig": map[string]interface{}{
+			"Binds": []string{
+				fmt.Sprintf("%s/logs:/app/logs:rw", agentDir),
+			},
+			"NetworkMode": networkMode,
+		},
+		"Env":          envVars,
+		"AttachStdout": true,
+		"AttachStderr": true,
+		"Tty":          true,
+	}
+
+	data, err := c.doRequest("POST", "/containers/create?name="+containerName, body)
+	if err != nil {
+		return "", fmt.Errorf("failed to create openclaw container: %w", err)
+	}
+
+	if len(data) == 0 {
+		return "", fmt.Errorf("empty Docker response")
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w, data: %s", err, string(data))
+	}
+
+	id, ok := resp["Id"].(string)
+	if !ok || id == "" {
+		// Check for error message in response
+		if msg, hasMsg := resp["message"].(string); hasMsg {
+			return "", fmt.Errorf("docker error: %s", msg)
+		}
+		return "", fmt.Errorf("no container ID returned, response: %s", string(data))
+	}
+
+	log.Printf("Created OpenClaw container %s for agent %s", id[:12], agentID)
+	return id[:12], nil
+}
+
 func (c *Client) StartContainer(ctx context.Context, containerID string) error {
 	_, err := c.doRequest("POST", "/containers/"+containerID+"/start", nil)
 	return err
